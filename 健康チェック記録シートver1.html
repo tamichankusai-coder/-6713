@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>健康チェック記録シート</title>
+
+<style>
+@page { size:A4; margin:10mm; }
+
+body {
+    font-family:"MS Gothic";
+    font-size:11px;
+}
+h1 {
+    text-align:center;
+    font-size:16px;
+    margin:5px 0;
+}
+table {
+    width:100%;
+    border-collapse:collapse;
+}
+th,td {
+    border:1px solid #000;
+    padding:3px;
+    text-align:center;
+}
+.small { font-size:10px; }
+
+input, select, textarea {
+    border:none;
+    width:100%;
+    font-size:11px;
+}
+
+.logo {
+    width:80px;
+    height:60px;
+    border:1px solid #000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+}
+
+.logo img {
+    max-width:100%;
+    max-height:100%;
+}
+
+.no-print { margin:5px 0; }
+
+@media print {
+    .no-print { display:none; }
+}
+</style>
+</head>
+
+<body>
+
+<form>
+
+<table>
+<tr>
+<td class="logo" id="logoBox">
+<img id="logoPreview" style="display:none;">
+</td>
+<td>
+<h1>健康チェック記録シート</h1>
+<div class="small">
+本様式は在宅介護・介護施設・訪問看護における健康状態の共有を目的とし、<br>
+医師・関係職種への提出資料として使用できます。
+</div>
+</td>
+</tr>
+</table>
+
+<input type="file" id="logoInput" class="no-print" accept="image/*">
+
+<br>
+
+<table>
+<tr>
+<th>施設名 / ご自宅</th>
+<td><input name="place"></td>
+<th>氏名</th>
+<td><input name="name"></td>
+<th>年齢</th>
+<td><input name="age"></td>
+</tr>
+<tr>
+<th>記録開始日</th>
+<td><input type="date" name="start"></td>
+<th>記録期間</th>
+<td colspan="3">
+<select name="period">
+<option value="7">1週間</option>
+<option value="30">30日</option>
+</select>
+</td>
+</tr>
+</table>
+
+<br>
+
+<table>
+<tr>
+<th rowspan="2">日付</th>
+<th colspan="6">状態（○▲×）</th>
+<th rowspan="2">体温</th>
+<th rowspan="2">血圧上</th>
+<th rowspan="2">血圧下</th>
+</tr>
+<tr>
+<th>体調</th><th>食欲</th><th>睡眠</th>
+<th>表情</th><th>排泄</th><th>服薬</th>
+</tr>
+
+<tr>
+<td><input type="date"></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><select><option></option><option>○</option><option>▲</option><option>×</option></select></td>
+<td><input></td>
+<td><input></td>
+<td><input></td>
+</tr>
+
+</table>
+
+<br>
+
+<table>
+<tr>
+<th>家族・介護職・訪問介護 コメント（申し送り）</th>
+</tr>
+<tr>
+<td><textarea rows="3"></textarea></td>
+</tr>
+</table>
+
+<br>
+
+<table>
+<tr>
+<th>担当者署名</th>
+<td><input></td>
+<th>確認日</th>
+<td><input type="date"></td>
+</tr>
+</table>
+
+<br>
+
+<button type="button" class="no-print" onclick="saveAll()">💾 すべての保存</button>
+<button type="button" class="no-print" onclick="window.print()">🖨 印刷</button>
+
+</form>
+
+<script>
+const logoBox = document.getElementById("logoBox");
+const logoInput = document.getElementById("logoInput");
+const logoPreview = document.getElementById("logoPreview");
+
+logoBox.addEventListener("dragover", e => e.preventDefault());
+
+logoBox.addEventListener("drop", e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) previewLogo(file);
+});
+
+logoInput.addEventListener("change", () => {
+    if (logoInput.files[0]) previewLogo(logoInput.files[0]);
+});
+
+function previewLogo(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        logoPreview.src = e.target.result;
+        logoPreview.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+}
+
+/* ★ 完全保存（select対応） */
+function saveAll() {
+
+    document.querySelectorAll("input").forEach(el => {
+        el.setAttribute("value", el.value);
+    });
+
+    document.querySelectorAll("textarea").forEach(el => {
+        el.innerHTML = el.value;
+    });
+
+    document.querySelectorAll("select").forEach(select => {
+        Array.from(select.options).forEach(opt => {
+            if (opt.selected) {
+                opt.setAttribute("selected", "selected");
+            } else {
+                opt.removeAttribute("selected");
+            }
+        });
+    });
+
+    const blob = new Blob(
+        ['<!DOCTYPE html>\n' + document.documentElement.outerHTML],
+        { type: "text/html" }
+    );
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "健康チェック記録シート_保存.html";
+    a.click();
+}
+</script>
+
+</body>
+</html>

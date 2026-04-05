@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顧客台帳</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+<style>
+body{
+    font-family:"Yu Mincho","MS 明朝",serif;
+    background:#f3efe6;
+    margin:0;
+}
+.header{
+    text-align:center;
+    padding:30px;
+    font-size:30px;
+    letter-spacing:10px;
+    border-bottom:4px double #000;
+    background:#fff;
+}
+.sub-header{
+    display:flex;
+    justify-content:space-between;
+    padding:15px 40px;
+    background:#fff;
+    border-bottom:1px solid #000;
+}
+.container{
+    max-width:1300px;
+    margin:30px auto;
+    background:#fff;
+    padding:40px;
+    border:2px solid #000;
+    box-shadow:0 0 15px rgba(0,0,0,0.1);
+}
+.controls{ margin-bottom:25px; }
+input,select,textarea{
+    padding:8px;
+    border:1px solid #000;
+    margin:5px 5px 5px 0;
+    font-family:"Yu Mincho","MS 明朝",serif;
+}
+button{
+    padding:8px 18px;
+    border:1px solid #000;
+    background:#fff;
+    cursor:pointer;
+}
+button:hover{ background:#eee; }
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+th,td{
+    border:1px solid #000;
+    padding:8px;
+}
+th{ background:#eae5d8; }
+@media print{
+    button,.controls{display:none}
+    body{background:#fff}
+}
+</style>
+</head>
+<body>
+
+<div class="header">顧　客　台　帳</div>
+
+<div class="sub-header">
+<div>
+作成日：
+<input type="date" id="todayInput">
+</div>
+<div>
+管理責任者：
+<input type="text" id="managerName">
+</div>
+</div>
+
+<div class="container">
+
+<div class="controls">
+<form id="customerForm">
+<input type="hidden" id="editIndex">
+
+<input type="text" id="nameInput" placeholder="氏名" required>
+<input type="text" id="companyInput" placeholder="会社名">
+<input type="text" id="phoneInput" placeholder="電話番号">
+<input type="email" id="emailInput" placeholder="メール">
+<input type="text" id="addressInput" placeholder="住所">
+
+<select id="statusInput">
+<option>見込み客</option>
+<option>商談中</option>
+<option>契約済</option>
+<option>失注</option>
+</select>
+
+<textarea id="memoInput" rows="2" placeholder="備考"></textarea>
+
+<br>
+<button type="submit">登録</button>
+<button type="button" onclick="exportExcel()">Excel出力</button>
+<button type="button" onclick="window.print()">印刷</button>
+</form>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>氏名</th>
+<th>会社</th>
+<th>電話</th>
+<th>メール</th>
+<th>住所</th>
+<th>状態</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody id="customerList"></tbody>
+</table>
+
+</div>
+
+<script>
+document.getElementById("todayInput").value =
+new Date().toISOString().split("T")[0];
+
+let customers=JSON.parse(localStorage.getItem("customers"))||[];
+
+function save(){
+localStorage.setItem("customers",JSON.stringify(customers));
+}
+
+function render(){
+const list=document.getElementById("customerList");
+list.innerHTML="";
+customers.forEach((c,i)=>{
+list.innerHTML+=`
+<tr>
+<td>${c.name||""}</td>
+<td>${c.company||""}</td>
+<td>${c.phone||""}</td>
+<td>${c.email||""}</td>
+<td>${c.address||""}</td>
+<td>${c.status||""}</td>
+<td>
+<button onclick="editCustomer(${i})">修正</button>
+<button onclick="deleteCustomer(${i})">削除</button>
+</td>
+</tr>`;
+});
+}
+render();
+
+customerForm.addEventListener("submit",e=>{
+e.preventDefault();
+const index=editIndex.value;
+const data={
+name:nameInput.value,
+company:companyInput.value,
+phone:phoneInput.value,
+email:emailInput.value,
+address:addressInput.value,
+status:statusInput.value,
+memo:memoInput.value
+};
+if(index===""){
+customers.push(data);
+}else{
+customers[index]=data;
+editIndex.value="";
+}
+save();
+e.target.reset();
+render();
+});
+
+function editCustomer(i){
+const c=customers[i];
+editIndex.value=i;
+nameInput.value=c.name;
+companyInput.value=c.company;
+phoneInput.value=c.phone;
+emailInput.value=c.email;
+addressInput.value=c.address;
+statusInput.value=c.status;
+memoInput.value=c.memo;
+}
+
+function deleteCustomer(i){
+if(confirm("削除しますか？")){
+customers.splice(i,1);
+save();
+render();
+}
+}
+
+/* ===== Excel出力（ロゴ完全削除） ===== */
+async function exportExcel(){
+
+if(customers.length===0){
+alert("データがありません");
+return;
+}
+
+const wb=new ExcelJS.Workbook();
+const ws=wb.addWorksheet("顧客台帳");
+
+ws.columns=[
+{header:"氏名",key:"name",width:15},
+{header:"会社",key:"company",width:20},
+{header:"電話",key:"phone",width:18},
+{header:"メール",key:"email",width:25},
+{header:"住所",key:"address",width:25},
+{header:"状態",key:"status",width:12}
+];
+
+customers.forEach(c=>ws.addRow(c));
+
+const buffer=await wb.xlsx.writeBuffer();
+const blob=new Blob([buffer],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+const link=document.createElement("a");
+link.href=URL.createObjectURL(blob);
+link.download="顧客台帳.xlsx";
+link.click();
+}
+</script>
+
+</body>
+</html>

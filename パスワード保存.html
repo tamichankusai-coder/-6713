@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>アカウント保存</title>
+  <style>
+    /* ★ 全体を明朝体にする */
+    body {
+      font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+    }
+
+    .field-label {
+      display: inline-block;
+      width: 100px;
+    }
+
+    .field-input {
+      width: 200px;
+    }
+
+    button {
+      margin-left: 5px;
+    }
+
+    #result {
+      white-space: pre-line;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <label>
+    表題：
+    <input type="text" id="title" class="field-input">
+    <button onclick="search()">検索</button>
+  </label><br><br>
+
+  <label>
+    アカウント：
+    <input type="text" id="account" class="field-input">
+  </label><br><br>
+
+  <label>
+    パスワード：
+    <input type="password" id="password" class="field-input">
+  </label><br><br>
+
+  <button onclick="save()">保存</button>
+  <button onclick="loadAll()">全件表示</button>
+
+  <p id="result"></p>
+
+  <script>
+    function save() {
+      const title = document.getElementById("title").value.trim();
+      const account = document.getElementById("account").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!title) {
+        alert("表題を入力してください");
+        return;
+      }
+
+      let data = JSON.parse(localStorage.getItem("accounts") || "{}");
+      data[title] = { account, password };
+      localStorage.setItem("accounts", JSON.stringify(data));
+      alert("保存しました");
+
+      document.getElementById("title").value = "";
+      document.getElementById("account").value = "";
+      document.getElementById("password").value = "";
+      loadAll();
+    }
+
+    function search() {
+      const inputTitle = document.getElementById("title").value.trim();
+      let data = JSON.parse(localStorage.getItem("accounts") || "{}");
+
+      if (data[inputTitle]) {
+        displayResult(inputTitle, data[inputTitle]);
+      } else {
+        document.getElementById("result").textContent = "該当する表題は見つかりません";
+      }
+    }
+
+    function displayResult(title, record) {
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = `
+        表題: ${title}, アカウント: ${record.account}, パスワード: ${record.password}
+        <button onclick="editRecord('${title}')">編集</button>
+        <button onclick="deleteRecord('${title}')">削除</button>
+      `;
+    }
+
+    function editRecord(title) {
+      let data = JSON.parse(localStorage.getItem("accounts") || "{}");
+      if (!data[title]) return;
+
+      document.getElementById("title").value = title;
+      document.getElementById("account").value = data[title].account;
+      document.getElementById("password").value = data[title].password;
+    }
+
+    function deleteRecord(title) {
+      if (!confirm(`${title} を削除しますか？`)) return;
+
+      let data = JSON.parse(localStorage.getItem("accounts") || "{}");
+      delete data[title];
+      localStorage.setItem("accounts", JSON.stringify(data));
+      alert(`${title} を削除しました`);
+      loadAll();
+    }
+
+    function loadAll() {
+      let data = JSON.parse(localStorage.getItem("accounts") || "{}");
+      const resultDiv = document.getElementById("result");
+
+      if (Object.keys(data).length === 0) {
+        resultDiv.textContent = "保存されたデータはありません";
+        return;
+      }
+
+      let resultText = "";
+      for (const title in data) {
+        resultText += `表題: ${title}, アカウント: ${data[title].account}, パスワード: ${data[title].password} ` +
+                      `<button onclick="editRecord('${title}')">編集</button>` +
+                      `<button onclick="deleteRecord('${title}')">削除</button>\n`;
+      }
+
+      resultDiv.innerHTML = resultText;
+    }
+  </script>
+</body>
+</html>

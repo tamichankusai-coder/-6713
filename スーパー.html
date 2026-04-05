@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>スーパーPOS（最終完成保存版）</title>
+<style>
+body { font-family: serif; }
+table { border-collapse: collapse; width:100%; }
+th,td { border:1px solid #000; padding:5px; text-align:center; }
+button { margin:5px; padding:5px 10px; }
+.receipt { border:1px solid #000; padding:10px; margin-top:10px; }
+input[type="number"] { width:60px; }
+select { width:80px; }
+.bottom { margin-top:30px; text-align:center; }
+@media print { button { display:none; } }
+</style>
+</head>
+<body>
+
+<h1>スーパーPOS</h1>
+
+<h2>商品一覧</h2>
+<table id="productTable"></table>
+<button onclick="addSelected()">カートに追加</button>
+
+<h2>カート</h2>
+<div id="cartDiv" class="receipt">カートは空です</div>
+<button onclick="checkout()">会計</button>
+
+<h2>売上履歴</h2>
+<div id="salesDiv">まだ売上はありません</div>
+
+<div class="bottom">
+<button onclick="saveAll()">すべて保存</button>
+<button onclick="window.print()">画面全体印刷</button>
+</div>
+
+<script>
+
+/* ===== 初期データ ===== */
+let products = [
+{id:1,name:"りんご",price:100,stock:10},
+{id:2,name:"パン",price:150,stock:10},
+{id:3,name:"牛乳",price:200,stock:10},
+{id:4,name:"チョコ",price:300,stock:10}
+];
+
+let cart = [];
+
+/* ===== 共通 ===== */
+function yen(n){ return n.toLocaleString()+"円"; }
+
+/* ===== 商品表示 ===== */
+function renderProducts(){
+let t=document.getElementById("productTable");
+t.innerHTML="<tr><th>商品</th><th>価格</th><th>在庫</th><th>税率</th><th>数量</th></tr>";
+
+products.forEach(p=>{
+let r=t.insertRow();
+r.insertCell(0).innerText=p.name;
+r.insertCell(1).innerText=yen(p.price);
+r.insertCell(2).innerText=p.stock;
+
+/* 税率 */
+let taxCell=r.insertCell(3);
+let sel=document.createElement("select");
+sel.id="tax_"+p.id;
+sel.innerHTML=
+"<option value='0'>無税</option>"+
+"<option value='0.08'>8%</option>"+
+"<option value='0.1' selected>10%</option>";
+taxCell.appendChild(sel);
+
+/* 数量 */
+let qtyCell=r.insertCell(4);
+let i=document.createElement("input");
+i.type="number";
+i.min=0;
+i.max=p.stock;
+i.value=0;
+i.id="q_"+p.id;
+qtyCell.appendChild(i);
+});
+}
+
+/* ===== カート表示 ===== */
+function renderCart(){
+let d=document.getElementById("cartDiv");
+
+if(cart.length===0){
+d.innerHTML="カートは空です";
+return;
+}
+
+let html="";
+let subtotal=0;
+let taxTotal=0;
+
+cart.forEach(it=>{
+let line=it.price*it.qty;
+let tax=Math.floor(line*it.tax);
+subtotal+=line;
+taxTotal+=tax;
+html+=it.name+" × "+it.qty+
+"（税"+(it.tax*100)+"%）= "+
+yen(line+tax)+"<br>";
+});
+
+html+="----------------<br>";
+html+="小計 "+yen(subtotal)+"<br>";
+html+="税 "+yen(taxTotal)+"<br>";
+html+="<b>合計 "+yen(subtotal+taxTotal)+"</b>";
+
+d.innerHTML=html;
+}
+
+/* ===== カート追加 ===== */
+function addSelected(){
+products.forEach(p=>{
+let q=parseInt(document.getElementById("q_"+p.id).value);
+let tax=parseFloat(document.getElementById("tax_"+p.id).value);
+
+if(q>0 && q<=p.stock){
+cart.push({name:p.name,price:p.price,tax:tax,qty:q});
+p.stock-=q;
+}
+});
+renderProducts();
+renderCart();
+}
+
+/* ===== 会計 ===== */
+function checkout(){
+
+if(cart.length===0){
+alert("カートは空です");
+return;
+}
+
+let subtotal=0;
+let taxTotal=0;
+
+cart.forEach(it=>{
+let line=it.price*it.qty;
+let tax=Math.floor(line*it.tax);
+subtotal+=line;
+taxTotal+=tax;
+});
+
+let salesDiv=document.getElementById("salesDiv");
+
+if(salesDiv.innerText==="まだ売上はありません"){
+salesDiv.innerHTML="";
+}
+
+let block=document.createElement("div");
+block.className="receipt";
+
+let html="<b>"+new Date().toLocaleString()+"</b><br>";
+
+cart.forEach(it=>{
+html+=it.name+" × "+it.qty+
+"（税"+(it.tax*100)+"%）<br>";
+});
+
+html+="----------------<br>";
+html+="小計 "+yen(subtotal)+"<br>";
+html+="税 "+yen(taxTotal)+"<br>";
+html+="<b>合計 "+yen(subtotal+taxTotal)+"</b>";
+
+block.innerHTML=html;
+salesDiv.appendChild(block);
+
+cart=[];
+renderCart();
+}
+
+/* ===== 保存 ===== */
+function saveAll(){
+localStorage.setItem("savedSalesHTML", document.getElementById("salesDiv").innerHTML);
+alert("保存しました（再読込しても売上履歴が保持されます）");
+}
+
+/* ===== 読み込み ===== */
+window.onload=function(){
+let saved=localStorage.getItem("savedSalesHTML");
+if(saved){
+document.getElementById("salesDiv").innerHTML=saved;
+}
+renderProducts();
+renderCart();
+};
+
+</script>
+
+</body>
+</html>

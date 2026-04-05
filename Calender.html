@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Google風 高機能カレンダー</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+body {
+  font-family:
+    "Noto Serif JP",
+    "Yu Mincho",
+    "Hiragino Mincho ProN",
+    "MS Mincho",
+    serif;
+  margin: 20px;
+}
+
+/* すべての要素を明朝に統一 */
+* {
+  font-family: inherit;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.controls button {
+  margin-right: 5px;
+}
+
+select, button, input {
+  padding: 4px 8px;
+  font-family: inherit;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.week-header {
+  text-align: center;
+  font-weight: bold;
+  background: #f1f3f4;
+}
+
+.day {
+  border: 1px solid #dadce0;
+  min-height: 120px;
+  padding: 4px;
+}
+
+.day header {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.today {
+  background: #fff8e1;
+  border: 2px solid #fbbc04;
+}
+
+.event {
+  margin-top: 3px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border-radius: 4px;
+  color: #fff;
+  cursor: grab;
+}
+
+.work { background: #1a73e8; }
+.private { background: #34a853; }
+
+/* 週・日表示 */
+.week-view .calendar,
+.day-view .calendar {
+  grid-template-columns: 1fr;
+}
+
+.week-view .day,
+.day-view .day {
+  min-height: 80px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div>
+    <button id="prev">◀</button>
+    <button id="next">▶</button>
+    <strong id="title"></strong>
+  </div>
+
+  <div class="controls">
+    <select id="view">
+      <option value="month">月</option>
+      <option value="week">週</option>
+      <option value="day">日</option>
+    </select>
+    <button id="saveAll">すべて保存</button>
+  </div>
+</header>
+
+<div id="calendar" class="calendar"></div>
+
+<script>
+const calendarEl = document.getElementById("calendar");
+const titleEl = document.getElementById("title");
+const viewSelect = document.getElementById("view");
+
+const weekDays = ["日","月","火","水","木","金","土"];
+const today = new Date();
+let current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+let viewMode = "month";
+
+const events = JSON.parse(localStorage.getItem("events") || "{}");
+
+function save() {
+  localStorage.setItem("events", JSON.stringify(events));
+}
+
+function keyOf(d) {
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+
+function render() {
+  calendarEl.innerHTML = "";
+  calendarEl.className = "calendar";
+
+  if (viewMode === "week") calendarEl.classList.add("week-view");
+  if (viewMode === "day") calendarEl.classList.add("day-view");
+
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  titleEl.textContent = `${year}年 ${month+1}月`;
+
+  if (viewMode === "month") renderMonth();
+  if (viewMode === "week") renderWeek();
+  if (viewMode === "day") renderDay();
+}
+
+function renderMonth() {
+  weekDays.forEach(d => {
+    const w = document.createElement("div");
+    w.textContent = d;
+    w.className = "week-header";
+    calendarEl.appendChild(w);
+  });
+
+  const firstDay = new Date(current.getFullYear(), current.getMonth(), 1).getDay();
+  const lastDate = new Date(current.getFullYear(), current.getMonth()+1, 0).getDate();
+
+  for (let i=0;i<firstDay;i++) calendarEl.appendChild(document.createElement("div"));
+
+  for (let d=1;d<=lastDate;d++) {
+    createDay(new Date(current.getFullYear(), current.getMonth(), d));
+  }
+}
+
+function renderWeek() {
+  const start = new Date(current);
+  start.setDate(current.getDate() - current.getDay());
+
+  for (let i=0;i<7;i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    createDay(d);
+  }
+}
+
+function renderDay() {
+  createDay(current);
+}
+
+function createDay(date) {
+  const dayEl = document.createElement("div");
+  dayEl.className = "day";
+  dayEl.dataset.key = keyOf(date);
+
+  if (keyOf(date) === keyOf(today)) dayEl.classList.add("today");
+
+  const h = document.createElement("header");
+  h.textContent = `${date.getMonth()+1}/${date.getDate()}`;
+  dayEl.appendChild(h);
+
+  const key = keyOf(date);
+
+  if (events[key]) {
+    events[key].forEach((ev, idx) => {
+      const e = document.createElement("div");
+      e.className = `event ${ev.type}`;
+      e.textContent = ev.text;
+      e.draggable = true;
+
+      e.onclick = (x) => {
+        x.stopPropagation();
+        const t = prompt("編集（空で削除）", ev.text);
+        if (t === null) return;
+        if (t === "") {
+          events[key].splice(idx,1);
+          if (!events[key].length) delete events[key];
+        } else {
+          ev.text = t;
+        }
+        save(); render();
+      };
+
+      dayEl.appendChild(e);
+    });
+  }
+
+  dayEl.onclick = () => {
+    const text = prompt("予定内容");
+    if (!text) return;
+    const type = prompt("種別：work / private", "work");
+    events[key] = events[key] || [];
+    events[key].push({ text, type: type === "private" ? "private" : "work" });
+    save(); render();
+  };
+
+  calendarEl.appendChild(dayEl);
+}
+
+document.getElementById("prev").onclick = () => {
+  current.setMonth(current.getMonth()-1);
+  render();
+};
+
+document.getElementById("next").onclick = () => {
+  current.setMonth(current.getMonth()+1);
+  render();
+};
+
+viewSelect.onchange = () => {
+  viewMode = viewSelect.value;
+  render();
+};
+
+document.getElementById("saveAll").onclick = () => {
+  save();
+  alert("すべて保存しました");
+};
+
+render();
+</script>
+
+</body>
+</html>

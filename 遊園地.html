@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>遊園地運営シミュレーション 完全版</title>
+
+<style>
+body {
+    font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+    margin: 20px;
+    background-color: #f8f6f2;
+}
+h1 { color: #8b0000; }
+table { border-collapse: collapse; width: 95%; margin-bottom: 20px; }
+th, td { border: 1px solid #555; padding: 8px; text-align: center; }
+th { background-color: #e6d8c3; }
+button { padding: 5px 10px; margin: 2px; cursor: pointer; font-family: inherit; }
+input { padding: 5px; font-family: inherit; }
+.status-running { color: green; font-weight: bold; }
+.status-stopped { color: red; font-weight: bold; }
+.status-maintenance { color: orange; font-weight: bold; }
+.info-input { width:120px; text-align:right; }
+</style>
+</head>
+<body>
+
+<h1>遊園地運営シミュレーション 完全版</h1>
+
+<h2>経営情報（入力可能）</h2>
+<p>総収益: <input type="number" id="totalRevenueInput" class="info-input"> 円</p>
+<p>スタッフ数: <input type="number" id="totalStaffInput" class="info-input"></p>
+<p>今日の来場者数: <input type="number" id="visitorCountInput" class="info-input"></p>
+<p>平均満足度: <input type="number" id="satisfactionInput" class="info-input"> %</p>
+<p>今日のイベント: <span id="todayEvent">なし</span></p>
+
+<h2>アトラクション管理</h2>
+<table id="rideTable">
+<thead>
+<tr>
+<th>名前</th>
+<th>定員</th>
+<th>料金</th>
+<th>稼働状況</th>
+<th>スタッフ</th>
+<th>待ち時間(min)</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<h3>アトラクション追加</h3>
+<label>名前: <input type="text" id="rideName"></label>
+<label>定員: <input type="number" id="rideCapacity"></label>
+<label>料金: <input type="number" id="ridePrice"></label>
+<button onclick="addRide()">追加</button>
+
+<h2>日々の運営</h2>
+<button onclick="simulateDay()">1日進行</button>
+
+<h2>データ操作</h2>
+<button onclick="saveAll()">全部保存（JSON出力）</button>
+<button onclick="saveToLocal()">画面保存</button>
+
+<script>
+let totalRevenue = 0;
+let totalStaff = 5;
+let visitorCount = 0;
+let satisfaction = 100;
+
+let rides = [
+    {name:"観覧車",capacity:40,price:500,running:true,staff:1,wait:0},
+    {name:"ジェットコースター",capacity:24,price:800,running:true,staff:2,wait:0},
+    {name:"メリーゴーランド",capacity:20,price:300,running:true,staff:1,wait:0}
+];
+
+let events = [
+    {name:"晴天",modifier:1.2},
+    {name:"雨",modifier:0.5},
+    {name:"花火大会",modifier:1.5}
+];
+
+function formatYen(num){ return "￥"+Number(num).toLocaleString(); }
+
+function saveToLocal(){
+    const data={totalRevenue,totalStaff,visitorCount,satisfaction,rides};
+    localStorage.setItem("parkData",JSON.stringify(data));
+}
+
+function loadFromLocal(){
+    const data=localStorage.getItem("parkData");
+    if(data){
+        const d=JSON.parse(data);
+        totalRevenue=d.totalRevenue||0;
+        totalStaff=d.totalStaff||5;
+        visitorCount=d.visitorCount||0;
+        satisfaction=d.satisfaction||100;
+        rides=d.rides||rides;
+    }
+}
+
+function syncInputs(){
+    document.getElementById("totalRevenueInput").value=totalRevenue;
+    document.getElementById("totalStaffInput").value=totalStaff;
+    document.getElementById("visitorCountInput").value=visitorCount;
+    document.getElementById("satisfactionInput").value=satisfaction;
+}
+
+function readInputs(){
+    totalRevenue=parseInt(document.getElementById("totalRevenueInput").value)||0;
+    totalStaff=parseInt(document.getElementById("totalStaffInput").value)||0;
+    visitorCount=parseInt(document.getElementById("visitorCountInput").value)||0;
+    satisfaction=parseInt(document.getElementById("satisfactionInput").value)||0;
+    saveToLocal();
+}
+
+document.querySelectorAll(".info-input").forEach(el=>{
+    el.addEventListener("change",readInputs);
+});
+
+function renderTable(){
+    const tbody=document.querySelector("#rideTable tbody");
+    tbody.innerHTML="";
+    rides.forEach((ride,index)=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+        <td>${ride.name}</td>
+        <td>${ride.capacity}</td>
+        <td>${formatYen(ride.price)}</td>
+        <td class="${ride.running?'status-running':'status-stopped'}">
+            ${ride.running?'稼働中':'停止中'}
+        </td>
+        <td>${ride.staff}</td>
+        <td>${ride.wait}</td>
+        <td>
+            <button onclick="toggleRide(${index})">切替</button>
+            <button onclick="deleteRide(${index})">削除</button>
+        </td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+function addRide(){
+    const name=document.getElementById("rideName").value.trim();
+    const capacity=parseInt(document.getElementById("rideCapacity").value);
+    const price=parseInt(document.getElementById("ridePrice").value);
+    if(!name||isNaN(capacity)||isNaN(price)){alert("入力エラー");return;}
+    rides.push({name,capacity,price,running:true,staff:1,wait:0});
+    renderTable(); saveToLocal();
+}
+
+function toggleRide(i){
+    rides[i].running=!rides[i].running;
+    renderTable(); saveToLocal();
+}
+
+function deleteRide(i){
+    rides.splice(i,1);
+    renderTable(); saveToLocal();
+}
+
+function simulateDay(){
+    readInputs();
+    visitorCount=Math.floor(Math.random()*201)+100;
+    const ev=events[Math.floor(Math.random()*events.length)];
+    document.getElementById("todayEvent").textContent=ev.name;
+
+    let dailyRevenue=0;
+    rides.forEach(r=>{
+        if(r.running){
+            let v=Math.min(visitorCount,r.capacity);
+            dailyRevenue+=v*r.price*(ev.modifier||1);
+            r.wait=Math.floor(v/r.capacity*10);
+        }
+    });
+
+    totalRevenue+=dailyRevenue-totalStaff*100;
+    satisfaction=Math.max(0,100-Math.floor(Math.random()*20));
+
+    syncInputs();
+    renderTable();
+    saveToLocal();
+}
+
+function saveAll(){
+    const data={totalRevenue,totalStaff,visitorCount,satisfaction,rides};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="park_data.json";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+loadFromLocal();
+syncInputs();
+renderTable();
+</script>
+
+</body>
+</html>

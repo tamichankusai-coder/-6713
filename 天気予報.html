@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>和風天気予報</title>
+
+<style>
+body {
+  font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  margin: 20px;
+  background-color: #f8f4e6;
+  background-image:
+    radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0,10px 10px;
+  color: #3b2f2f;
+}
+
+h1 {
+  text-align: center;
+  border-bottom: 3px double #8b0000;
+  padding-bottom: 10px;
+  margin-bottom: 25px;
+}
+
+label {
+  margin-right: 10px;
+}
+
+input, button {
+  font-family: inherit;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #8b0000;
+  background-color: #fffdf5;
+}
+
+button {
+  background-color: #8b0000;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #a52a2a;
+}
+
+.weather-day {
+  border: 1px solid #8b0000;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.7);
+}
+
+.weather-icon {
+  font-size: 24px;
+  margin-right: 8px;
+}
+
+canvas {
+  margin-top: 20px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid #8b0000;
+  padding: 10px;
+  border-radius: 6px;
+}
+</style>
+
+</head>
+<body>
+
+<h1>和風 天気予報</h1>
+
+<label>開始日: <input type="date" id="startDate"></label>
+<label>地域名: <input type="text" id="regionName" placeholder="例: 東京"></label>
+<button onclick="saveRegion()">保存</button>
+<button onclick="fetchWeather()">表示</button>
+
+<div id="weatherBox">日付を選択して「表示」を押してください。</div>
+<canvas id="weatherChart" style="max-width:800px;"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// グラフ全体フォント明朝指定
+Chart.defaults.font.family = "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',serif";
+Chart.defaults.color = "#3b2f2f";
+
+function getIcon(code) {
+  switch(code){
+    case 0: return "☀";
+    case 1: return "☀";
+    case 2: return "⛅";
+    case 3: return "☁";
+    case 61: return "☂";
+    case 63: return "☂";
+    case 65: return "☂";
+    case 71: return "❄";
+    default: return "？";
+  }
+}
+
+function getText(code) {
+  switch(code){
+    case 0: return "快晴";
+    case 1: return "晴れ";
+    case 2: return "曇り時々晴れ";
+    case 3: return "曇り";
+    case 61: return "雨";
+    case 63: return "強い雨";
+    case 65: return "大雨";
+    case 71: return "雪";
+    default: return "不明";
+  }
+}
+
+function generateWeatherData(startDate) {
+  const daily = { time: [], temperature_2m_max: [], temperature_2m_min: [], precipitation_probability_max: [], weathercode: [] };
+  const weatherCodes = [0,1,2,3,61,63,65,71];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    daily.time.push(`${yyyy}/${mm}/${dd}`);
+    const minT = Math.floor(Math.random() * 6);
+    const maxT = minT + Math.floor(Math.random() * 10) + 5;
+    daily.temperature_2m_min.push(minT);
+    daily.temperature_2m_max.push(maxT);
+    daily.precipitation_probability_max.push(Math.floor(Math.random()*101));
+    daily.weathercode.push(weatherCodes[Math.floor(Math.random()*weatherCodes.length)]);
+  }
+  return daily;
+}
+
+function saveRegion() {
+  const regionInput = document.getElementById("regionName").value.trim();
+  if (!regionInput) {
+    alert("地域名を入力してください。");
+    return;
+  }
+  localStorage.setItem("savedRegion", regionInput);
+  alert(`地域名「${regionInput}」を保存しました。`);
+}
+
+function fetchWeather() {
+  const box = document.getElementById("weatherBox");
+  const startDateInput = document.getElementById("startDate").value;
+  if (!startDateInput) {
+    box.innerHTML = "日付を入力してください。";
+    return;
+  }
+
+  const startDate = new Date(startDateInput);
+  const savedRegion = localStorage.getItem("savedRegion");
+  let regionText = savedRegion ? `<p><strong>地域:</strong> ${savedRegion}</p>` : "";
+  box.innerHTML = "取得中…";
+
+  const daily = generateWeatherData(startDate);
+
+  let html = regionText;
+  const labels = [], tempAm = [], tempPm = [], popAm = [], popPm = [];
+
+  for (let i = 0; i < daily.time.length; i++) {
+    const date = daily.time[i];
+    const maxT = daily.temperature_2m_max[i];
+    const minT = daily.temperature_2m_min[i];
+    const pop = daily.precipitation_probability_max[i];
+    const code = daily.weathercode[i];
+    const icon = getIcon(code);
+
+    const amPop = Math.round(pop * 0.6);
+    const pmPop = Math.round(pop * 0.8);
+    const amTemp = Math.round(minT + (maxT - minT) * 0.4);
+    const pmTemp = Math.round(minT + (maxT - minT) * 0.7);
+
+    labels.push(date); tempAm.push(amTemp); tempPm.push(pmTemp);
+    popAm.push(amPop); popPm.push(pmPop);
+
+    html += `<div class="weather-day">
+      <span class="weather-icon">${icon}</span>
+      <strong>${date}</strong> 天気: ${getText(code)}<br>
+      最高:${maxT}℃ / 最低:${minT}℃<br>
+      降水確率: ${pop}%（午前:${amPop}%・午後:${pmPop}%）
+    </div>`;
+  }
+
+  box.innerHTML = html;
+
+  const ctx = document.getElementById('weatherChart').getContext('2d');
+  if (window.myChart) window.myChart.destroy();
+
+  window.myChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: '午前平均気温(℃)', data: tempAm, backgroundColor: 'rgba(178,34,34,0.6)' },
+        { label: '午後平均気温(℃)', data: tempPm, backgroundColor: 'rgba(139,69,19,0.6)' },
+        { label: '午前降水確率(%)', data: popAm, backgroundColor: 'rgba(205,133,63,0.6)' },
+        { label: '午後降水確率(%)', data: popPm, backgroundColor: 'rgba(160,82,45,0.6)' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: { font: { family: "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',serif" } }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { family: "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',serif" } } },
+        y: { beginAtZero: true, ticks: { font: { family: "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',serif" } } }
+      }
+    }
+  });
+}
+
+window.onload = function() {
+  const savedRegion = localStorage.getItem("savedRegion");
+  if (savedRegion) document.getElementById("regionName").value = savedRegion;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>車販売管理システム</title>
+
+<style>
+body{
+  font-family:"MS Mincho","Hiragino Mincho Pro",serif;
+  padding:30px;
+}
+
+.section{
+  border:1px solid #000;
+  padding:20px;
+  margin-bottom:30px;
+}
+
+.contract{
+  width:210mm;
+  min-height:297mm;
+  padding:20mm;
+  margin:auto;
+  border:3px double #000;
+  background:#fff;
+  box-sizing:border-box;
+}
+
+.contract h2{
+  text-align:center;
+  font-size:24px;
+}
+
+.label{ margin-top:10px; font-size:18px; }
+
+.field{
+  border:1px solid #000;
+  padding:8px;
+  margin-bottom:10px;
+  min-height:28px;
+  font-size:18px;
+}
+
+textarea{
+  width:100%;
+  height:70px;
+  font-size:18px;
+  font-family:"MS Mincho","Hiragino Mincho Pro",serif;
+  border:1px solid #000;
+}
+
+table{
+  border-collapse:collapse;
+  width:100%;
+}
+
+th,td{
+  border:1px solid #000;
+  padding:6px;
+  text-align:center;
+}
+
+button{ padding:6px 12px; margin:5px; }
+
+.summary{ font-size:18px; }
+
+.bottomButtons{
+  text-align:center;
+  margin-top:40px;
+  padding:20px;
+  border-top:2px solid #000;
+}
+
+@media print{
+  button{ display:none; }
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚗 車販売管理システム</h1>
+
+<div class="section">
+<h2>🏢 販売会社情報（入力用）</h2>
+会社名：<input type="text" id="companyName"><br><br>
+住所：<input type="text" id="companyAddress"><br><br>
+電話番号：<input type="text" id="companyTel"><br><br>
+代表者名：<input type="text" id="companyRep"><br>
+</div>
+
+<div class="section">
+<h2>🚗 車両登録</h2>
+メーカー：<input type="text" id="maker"><br><br>
+車種：<input type="text" id="model"><br><br>
+本体価格：<input type="number" id="price"><br><br>
+
+税区分：
+<select id="taxMode">
+<option value="exclusive">外税</option>
+<option value="inclusive">内税</option>
+</select>
+<br><br>
+
+消費税率：
+<select id="taxRate">
+<option value="0.10">10％</option>
+<option value="0.08">8％</option>
+<option value="0">非課税</option>
+</select>
+<br><br>
+
+在庫：<input type="number" id="stock"><br><br>
+<button onclick="addCar()">登録</button>
+</div>
+
+<div class="section">
+<h2>📋 車両一覧</h2>
+<table>
+<tr>
+<th>メーカー</th>
+<th>車種</th>
+<th>価格</th>
+<th>税区分</th>
+<th>税率</th>
+<th>在庫</th>
+<th>販売</th>
+</tr>
+<tbody id="carList"></tbody>
+</table>
+</div>
+
+<div class="section summary">
+<h2>📊 売上集計</h2>
+販売台数：<span id="totalCount">0</span> 台<br>
+税抜売上合計：<span id="totalBase">0円</span><br>
+消費税合計：<span id="totalTax">0円</span><br>
+税込総売上：<span id="totalAmount">0円</span>
+</div>
+
+<div id="contractArea">
+<div class="contract">
+
+<h2>自動車売買契約書</h2>
+
+<div class="label">契約日</div>
+<div id="cDate" class="field"></div>
+
+<div class="label">メーカー</div>
+<div id="cMaker" class="field"></div>
+
+<div class="label">車種</div>
+<div id="cModel" class="field"></div>
+
+<div class="label">本体価格</div>
+<div id="cBase" class="field"></div>
+
+<div class="label">消費税</div>
+<div id="cTax" class="field"></div>
+
+<div class="label">総額</div>
+<div id="cTotal" class="field"></div>
+
+<div class="label">購入者氏名</div>
+<div id="buyer" class="field"></div>
+
+<div class="label">署名欄</div>
+<textarea></textarea>
+
+</div>
+</div>
+
+<!-- ★最下部ボタン -->
+<div class="bottomButtons">
+<button onclick="saveAll()">💾 画面全部を保存</button>
+<button onclick="window.print()">🖨 画面全体を印刷</button>
+</div>
+
+<script>
+
+var cars=[];
+var totalBase=0;
+var totalTax=0;
+var totalCount=0;
+
+function formatYen(num){
+  return Number(num).toLocaleString()+"円";
+}
+
+/* ===== 保存機能 ===== */
+function saveAll(){
+
+  var dealerData={
+    name:document.getElementById("companyName").value,
+    address:document.getElementById("companyAddress").value,
+    tel:document.getElementById("companyTel").value,
+    rep:document.getElementById("companyRep").value
+  };
+
+  var allData={
+    dealer:dealerData,
+    cars:cars,
+    totalBase:totalBase,
+    totalTax:totalTax,
+    totalCount:totalCount
+  };
+
+  localStorage.setItem("carSystemData",JSON.stringify(allData));
+  alert("保存しました");
+}
+
+/* ===== 読み込み ===== */
+window.onload=function(){
+
+  var saved=localStorage.getItem("carSystemData");
+  if(saved){
+    var data=JSON.parse(saved);
+
+    if(data.dealer){
+      document.getElementById("companyName").value=data.dealer.name||"";
+      document.getElementById("companyAddress").value=data.dealer.address||"";
+      document.getElementById("companyTel").value=data.dealer.tel||"";
+      document.getElementById("companyRep").value=data.dealer.rep||"";
+    }
+
+    cars=data.cars||[];
+    totalBase=data.totalBase||0;
+    totalTax=data.totalTax||0;
+    totalCount=data.totalCount||0;
+
+    updateSummary();
+    renderList();
+  }
+};
+
+function addCar(){
+  var maker=document.getElementById("maker").value;
+  var model=document.getElementById("model").value;
+  var price=Number(document.getElementById("price").value);
+  var taxMode=document.getElementById("taxMode").value;
+  var taxRate=Number(document.getElementById("taxRate").value);
+  var stock=Number(document.getElementById("stock").value);
+
+  if(!maker||!model||!price||!stock){
+    alert("全て入力してください");
+    return;
+  }
+
+  cars.push({maker,model,price,taxMode,taxRate,stock});
+  renderList();
+}
+
+function renderList(){
+  var tbody=document.getElementById("carList");
+  tbody.innerHTML="";
+
+  cars.forEach((car,index)=>{
+    var rateDisplay=car.taxRate==0?"非課税":(car.taxRate*100)+"％";
+
+    var row="<tr>";
+    row+="<td>"+car.maker+"</td>";
+    row+="<td>"+car.model+"</td>";
+    row+="<td>"+formatYen(car.price)+"</td>";
+    row+="<td>"+(car.taxMode=="exclusive"?"外税":"内税")+"</td>";
+    row+="<td>"+rateDisplay+"</td>";
+    row+="<td>"+car.stock+"</td>";
+    row+="<td><button onclick='sellCar("+index+")'>販売</button></td>";
+    row+="</tr>";
+
+    tbody.innerHTML+=row;
+  });
+}
+
+function sellCar(index){
+
+  if(cars[index].stock<=0){
+    alert("在庫なし");
+    return;
+  }
+
+  var buyer=prompt("購入者氏名を入力してください");
+  if(!buyer) return;
+
+  var base=cars[index].price;
+  var tax=0;
+  var total=0;
+
+  if(cars[index].taxRate==0){
+    total=base;
+  }
+  else if(cars[index].taxMode=="exclusive"){
+    tax=Math.floor(base*cars[index].taxRate);
+    total=base+tax;
+  }
+  else{
+    total=base;
+    base=Math.floor(total/(1+cars[index].taxRate));
+    tax=total-base;
+  }
+
+  totalBase+=base;
+  totalTax+=tax;
+  totalCount++;
+
+  document.getElementById("cDate").innerText=new Date().toLocaleDateString();
+  document.getElementById("cMaker").innerText=cars[index].maker;
+  document.getElementById("cModel").innerText=cars[index].model;
+  document.getElementById("cBase").innerText=formatYen(base);
+  document.getElementById("cTax").innerText=formatYen(tax);
+  document.getElementById("cTotal").innerText=formatYen(total);
+  document.getElementById("buyer").innerText=buyer;
+
+  cars[index].stock--;
+  renderList();
+  updateSummary();
+}
+
+function updateSummary(){
+  document.getElementById("totalCount").innerText=totalCount;
+  document.getElementById("totalBase").innerText=formatYen(totalBase);
+  document.getElementById("totalTax").innerText=formatYen(totalTax);
+  document.getElementById("totalAmount").innerText=formatYen(totalBase+totalTax);
+}
+
+renderList();
+
+</script>
+
+</body>
+</html>

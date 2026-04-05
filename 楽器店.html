@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>楽器店 完全経営システム</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{font-family:"Meiryo";background:#eef3f8;padding:20px;}
+h1{text-align:center;}
+.box{
+    background:white;
+    padding:15px;
+    margin-bottom:20px;
+    border-radius:10px;
+    box-shadow:0 0 10px #ccc;
+}
+input,select,button{padding:5px;margin:5px;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ccc;padding:8px;text-align:center;}
+.calendar{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:5px;
+}
+.day{
+    background:#fafafa;
+    border:1px solid #ccc;
+    min-height:80px;
+    padding:5px;
+    font-size:12px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎸 楽器店 完全経営システム</h1>
+
+<div class="box">
+<h3>🔍 楽器検索</h3>
+<input id="search" placeholder="名前検索" oninput="render()">
+</div>
+
+<div class="box">
+<h3>🎸 楽器登録</h3>
+名前 <input id="name">
+種類 <select id="type">
+<option>ギター</option><option>ベース</option>
+<option>ドラム</option><option>ピアノ</option><option>その他</option>
+</select>
+販売価格 <input id="price" type="number">
+仕入価格 <input id="cost" type="number">
+在庫 <input id="stock" type="number">
+<button onclick="addItem()">登録</button>
+</div>
+
+<div class="box">
+<h3>販売</h3>
+<select id="sellSelect"></select>
+数量 <input id="sellQty" type="number" value="1">
+<button onclick="sellItem()">販売</button>
+<button onclick="printReceipt()">🧾 レシート印刷</button>
+<p id="salesResult"></p>
+</div>
+
+<div class="box">
+<h3>🔧 修理受付</h3>
+楽器 <input id="repairName">
+内容 <input id="repairContent">
+料金 <input id="repairPrice" type="number">
+期日 <input id="repairDate" type="date">
+<button onclick="addRepair()">登録</button>
+<ul id="repairList"></ul>
+</div>
+
+<div class="box">
+<h3>📅 修理カレンダー</h3>
+<div id="calendar" class="calendar"></div>
+</div>
+
+<div class="box">
+<h3>📦 在庫一覧</h3>
+<table>
+<thead>
+<tr>
+<th>名前</th><th>種類</th><th>価格</th><th>在庫</th><th>削除</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h3>📊 経営</h3>
+<p id="management"></p>
+<canvas id="chart"></canvas>
+</div>
+
+<div class="box">
+<button onclick="saveAll()">💾 すべて保存</button>
+</div>
+
+<script>
+
+// ===== ￥表示 =====
+function yen(num){
+    return "￥" + Number(num).toLocaleString();
+}
+
+// ===== データ =====
+let items = JSON.parse(localStorage.getItem("items")) || [];
+let sales = JSON.parse(localStorage.getItem("sales")) || [];
+let repairs = JSON.parse(localStorage.getItem("repairs")) || [];
+
+let lastSale = null;
+
+// ===== 保存 =====
+function saveAll(){
+    localStorage.setItem("items", JSON.stringify(items));
+    localStorage.setItem("sales", JSON.stringify(sales));
+    localStorage.setItem("repairs", JSON.stringify(repairs));
+    alert("保存しました");
+}
+
+// ===== 楽器 =====
+function addItem(){
+    items.push({
+        name:value("name"),
+        type:value("type"),
+        price:Number(value("price")),
+        cost:Number(value("cost")),
+        stock:Number(value("stock"))
+    });
+    render();
+}
+
+// ===== 販売 =====
+function sellItem(){
+    const i=value("sellSelect");
+    const qty=Number(value("sellQty"));
+
+    if(items[i].stock < qty){ alert("在庫不足"); return;}
+
+    items[i].stock -= qty;
+
+    const total=items[i].price*qty;
+    const profit=(items[i].price-items[i].cost)*qty;
+
+    const month=new Date().toISOString().slice(0,7);
+
+    sales.push({month,total,profit});
+
+    lastSale={name:items[i].name,qty,total};
+
+    document.getElementById("salesResult").innerText =
+        `売上:${yen(total)} 利益:${yen(profit)}`;
+
+    render();
+}
+
+// ===== レシート =====
+function printReceipt(){
+    if(!lastSale){ alert("販売後に印刷"); return;}
+
+    const w=window.open("");
+    w.document.write(`
+    <h2>レシート</h2>
+    商品:${lastSale.name}<br>
+    数量:${lastSale.qty}<br>
+    合計:${yen(lastSale.total)}<br>
+    `);
+    w.print();
+}
+
+// ===== 修理 =====
+function addRepair(){
+    repairs.push({
+        name:value("repairName"),
+        content:value("repairContent"),
+        price:Number(value("repairPrice")),
+        date:value("repairDate"),
+        status:"受付"
+    });
+    render();
+}
+
+function changeStatus(i){
+    const s=["受付","修理中","完了"];
+    let index=s.indexOf(repairs[i].status);
+    repairs[i].status=s[(index+1)%3];
+    render();
+}
+
+// ===== 表示 =====
+function render(){
+
+    const keyword=value("search");
+
+    const list=document.getElementById("list");
+    const sellSelect=document.getElementById("sellSelect");
+
+    list.innerHTML="";
+    sellSelect.innerHTML="";
+
+    let totalProfit=0;
+
+    items.forEach((item,i)=>{
+
+        if(keyword && !item.name.includes(keyword)) return;
+
+        list.innerHTML+=`
+        <tr>
+        <td>${item.name}</td>
+        <td>${item.type}</td>
+        <td>${yen(item.price)}</td>
+        <td>${item.stock}</td>
+        <td><button onclick="items.splice(${i},1);render()">削除</button></td>
+        </tr>`;
+
+        sellSelect.innerHTML+=`<option value="${i}">${item.name}</option>`;
+    });
+
+    sales.forEach(s=> totalProfit+=s.profit);
+
+    document.getElementById("management").innerText =
+        "累計利益："+yen(totalProfit);
+
+    // 修理一覧
+    document.getElementById("repairList").innerHTML =
+        repairs.map((r,i)=>`
+        <li onclick="changeStatus(${i})">
+        ${r.name}｜${r.content}｜${yen(r.price)}｜${r.date}｜【${r.status}】
+        </li>`).join("");
+
+    drawCalendar();
+    drawChart();
+}
+
+// ===== カレンダー =====
+function drawCalendar(){
+
+    const cal=document.getElementById("calendar");
+    cal.innerHTML="";
+
+    const now=new Date();
+    const year=now.getFullYear();
+    const month=now.getMonth();
+
+    const lastDay=new Date(year,month+1,0).getDate();
+
+    for(let d=1; d<=lastDay; d++){
+
+        const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+
+        const dayDiv=document.createElement("div");
+        dayDiv.className="day";
+
+        let text = `<strong>${d}</strong><br>`;
+
+        repairs.forEach(r=>{
+            if(r.date===dateStr){
+                text += `🔧${r.name}<br>`;
+            }
+        });
+
+        dayDiv.innerHTML=text;
+        cal.appendChild(dayDiv);
+    }
+}
+
+// ===== グラフ =====
+function drawChart(){
+
+    const ctx=document.getElementById("chart");
+
+    const map={};
+    sales.forEach(s=>{
+        map[s.month]=(map[s.month]||0)+s.total;
+    });
+
+    const labels=Object.keys(map);
+    const data=Object.values(map);
+
+    if(window.chart) window.chart.destroy();
+
+    window.chart=new Chart(ctx,{
+        type:'bar',
+        data:{
+            labels:labels,
+            datasets:[{label:'売上',data:data}]
+        },
+        options:{
+            plugins:{
+                tooltip:{
+                    callbacks:{
+                        label:c=>"売上:"+yen(c.raw)
+                    }
+                }
+            },
+            scales:{
+                y:{
+                    ticks:{
+                        callback:v=>yen(v)
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ===== 共通 =====
+function value(id){
+    return document.getElementById(id).value;
+}
+
+render();
+
+</script>
+
+</body>
+</html>

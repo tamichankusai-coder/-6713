@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>自由入力できる1日の時程表</title>
+
+<style>
+/* ===== 和風 明朝体 ===== */
+body {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+  background-color: #f8f4e6;
+  background-image:
+    radial-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    radial-gradient(rgba(0,0,0,0.02) 1px, transparent 1px);
+  background-size: 4px 4px, 6px 6px;
+  padding: 30px;
+  color: #2b2b2b;
+}
+
+button, input, textarea, select, table, th, td, caption, h3, span {
+  font-family: inherit;
+}
+
+/* ===== 見出し ===== */
+h3 {
+  border-left: 6px solid #7b001c;
+  padding-left: 10px;
+  margin-bottom: 10px;
+}
+
+/* ===== 表 ===== */
+table {
+  border-collapse: collapse;
+  width: 500px;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.15);
+}
+
+th, td {
+  border: 1px solid #555;
+  padding: 8px;
+  text-align: center;
+}
+
+th {
+  background: linear-gradient(#ece5d8, #e0d6c3);
+}
+
+caption {
+  font-size: 1.3em;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #7b001c;
+}
+
+/* ===== 入力部品 ===== */
+input[type="text"], input[type="date"], select {
+  width: 95%;
+  box-sizing: border-box;
+  padding: 4px;
+  border: 1px solid #777;
+  background-color: #fffdf8;
+}
+
+textarea {
+  width: 95%;
+  height: 120px;
+  margin-top: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+  resize: vertical;
+  background-color: #fffdf8;
+  border: 1px solid #777;
+}
+
+/* ===== ボタン ===== */
+button {
+  margin: 6px 6px 10px 0;
+  padding: 8px 18px;
+  font-size: 14px;
+  background: linear-gradient(#a3001b, #7b001c);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+.print-date { display: none; }
+
+/* ===== 印刷用美化 ===== */
+@media print {
+
+  body {
+    background: white;
+    padding: 0;
+  }
+
+  .no-print, button, input[type="date"], select {
+    display: none !important;
+  }
+
+  table {
+    width: 100%;
+    box-shadow: none;
+    background: white;
+  }
+
+  th {
+    background: #eee;
+  }
+
+  textarea {
+    height: 180px;
+  }
+
+  .print-date {
+    display: inline;
+    font-weight: bold;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<h3>
+  年月日：
+  <input type="date" id="dateInput">
+  <span class="print-date" id="printDate"></span>
+
+  <span class="no-print">
+    保存済み日：
+    <select id="savedDates">
+      <option value="">-- 過去のデータを選択 --</option>
+    </select>
+  </span>
+</h3>
+
+<table id="scheduleTable">
+  <caption>一日の時程表</caption>
+  <tr>
+    <th>時間</th>
+    <th>内容</th>
+    <th class="no-print">操作</th>
+  </tr>
+</table>
+
+<div>
+  <button class="no-print" onclick="addRow()">行を追加</button>
+  <button onclick="window.print()">印刷プレビュー</button>
+  <button class="no-print" onclick="saveSchedule()">すべて保存</button>
+</div>
+
+<h3>備考：</h3>
+<textarea id="remarks" placeholder="自由に記入してください"></textarea>
+
+<script>
+const table = document.getElementById("scheduleTable");
+const dateInput = document.getElementById("dateInput");
+const remarks = document.getElementById("remarks");
+const savedDatesSelect = document.getElementById("savedDates");
+const printDate = document.getElementById("printDate");
+
+const today = new Date().toISOString().split("T")[0];
+
+window.onload = function() {
+  dateInput.value = today;
+  printDate.textContent = today;
+  updateSavedDates();
+  loadSchedule(today);
+};
+
+dateInput.addEventListener("change", () => {
+  printDate.textContent = dateInput.value;
+});
+
+savedDatesSelect.addEventListener("change", () => {
+  if (savedDatesSelect.value) loadSchedule(savedDatesSelect.value);
+});
+
+function addRow(time = "", content = "") {
+  const row = table.insertRow(-1);
+  row.innerHTML = `
+    <td><input type="text" value="${time}" placeholder="例：10:00 - 11:00"></td>
+    <td><input type="text" value="${content}" placeholder="予定を入力"></td>
+    <td class="no-print"><button onclick="deleteRow(this)">削除</button></td>
+  `;
+}
+
+function deleteRow(btn) {
+  btn.closest("tr").remove();
+}
+
+function saveSchedule() {
+  const rowsData = [];
+  for (let i = 1; i < table.rows.length; i++) {
+    rowsData.push({
+      time: table.rows[i].cells[0].children[0].value,
+      content: table.rows[i].cells[1].children[0].value
+    });
+  }
+
+  localStorage.setItem("schedule_" + today, JSON.stringify(rowsData));
+  localStorage.setItem("remarks_" + today, remarks.value);
+
+  updateSavedDates();
+  alert("入力内容を保存しました！");
+}
+
+function loadSchedule(date) {
+  while (table.rows.length > 1) table.deleteRow(1);
+
+  const savedRows = localStorage.getItem("schedule_" + date);
+  const savedRemarks = localStorage.getItem("remarks_" + date);
+
+  if (savedRows) {
+    JSON.parse(savedRows).forEach(r => addRow(r.time, r.content));
+  } else {
+    addRow();
+  }
+
+  remarks.value = savedRemarks || "";
+}
+
+function updateSavedDates() {
+  for (let i = savedDatesSelect.options.length - 1; i >= 1; i--) {
+    savedDatesSelect.remove(i);
+  }
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith("schedule_")) {
+      const date = key.replace("schedule_", "");
+      const opt = document.createElement("option");
+      opt.value = date;
+      opt.text = date;
+      savedDatesSelect.add(opt);
+    }
+  }
+}
+</script>
+
+</body>
+</html>

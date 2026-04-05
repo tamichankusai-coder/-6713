@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>音楽管理ソフト</title>
+<style>
+body {
+    font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho","Noto Serif JP",serif;
+    padding: 20px;
+}
+
+.input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.input-row input {
+    padding: 5px;
+    width: 150px;
+    font-family: inherit;
+}
+
+.fixed-save {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 1000;
+    font-family: inherit;
+}
+
+table {
+    margin-top: 20px;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 6px;
+    text-align: left;
+}
+
+th {
+    background-color: #f0f0f0;
+}
+
+tr.editable:hover {
+    background-color: #e0f7fa;
+    cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<h2>音楽管理ソフト</h2>
+
+<!-- 固定表示 保存ボタン -->
+<button class="fixed-save" onclick="saveMusic()">すべて保存</button>
+
+<div class="input-row">
+    <input type="date" id="date">
+    <input type="text" id="title" placeholder="楽曲名">
+    <input type="text" id="artist" placeholder="歌手名">
+    <input type="url" id="url" placeholder="楽曲URL">
+    <input type="text" id="genre" placeholder="ジャンル・スタイル">
+    <input type="text" id="notes" placeholder="その他関連事項">
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>年月日</th>
+            <th>楽曲名</th>
+            <th>歌手名</th>
+            <th>楽曲URL</th>
+            <th>ジャンル・スタイル</th>
+            <th>その他</th>
+        </tr>
+    </thead>
+    <tbody id="musicList"></tbody>
+</table>
+
+<script>
+let editIndex = null;
+
+function loadMusic() {
+    const data = JSON.parse(localStorage.getItem("musicData")) || [];
+    const list = document.getElementById("musicList");
+    list.innerHTML = "";
+
+    data.forEach((item, index) => {
+        const row = document.createElement("tr");
+        row.classList.add("editable");
+        row.innerHTML = `
+            <td>${item.date}</td>
+            <td>${item.title}</td>
+            <td>${item.artist}</td>
+            <td><a href="${item.url}" target="_blank">リンク</a></td>
+            <td>${item.genre}</td>
+            <td>${item.notes}</td>
+        `;
+        row.onclick = () => editMusic(index);
+        list.appendChild(row);
+    });
+}
+
+function editMusic(index) {
+    const data = JSON.parse(localStorage.getItem("musicData")) || [];
+    const item = data[index];
+    document.getElementById("date").value = item.date;
+    document.getElementById("title").value = item.title;
+    document.getElementById("artist").value = item.artist;
+    document.getElementById("url").value = item.url;
+    document.getElementById("genre").value = item.genre;
+    document.getElementById("notes").value = item.notes;
+    editIndex = index;
+}
+
+function saveMusic() {
+    const music = {
+        date: document.getElementById("date").value,
+        title: document.getElementById("title").value,
+        artist: document.getElementById("artist").value,
+        url: document.getElementById("url").value,
+        genre: document.getElementById("genre").value,
+        notes: document.getElementById("notes").value
+    };
+
+    const data = JSON.parse(localStorage.getItem("musicData")) || [];
+
+    if (editIndex !== null) {
+        data[editIndex] = music;
+        editIndex = null;
+    } else {
+        data.push(music);
+    }
+
+    localStorage.setItem("musicData", JSON.stringify(data));
+    clearInputs();
+    loadMusic();
+}
+
+function clearInputs() {
+    document.getElementById("date").value = "";
+    document.getElementById("title").value = "";
+    document.getElementById("artist").value = "";
+    document.getElementById("url").value = "";
+    document.getElementById("genre").value = "";
+    document.getElementById("notes").value = "";
+}
+
+loadMusic();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>動物園＋動物病院システム（完全安定版）</title>
+
+<style>
+body{font-family:Meiryo;background:#eef3f8;padding:20px;}
+.box{background:#fff;padding:15px;border-radius:10px;margin-bottom:20px;}
+input,select,button,textarea{padding:8px;margin:5px;width:100%;}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #ccc;padding:5px;text-align:center;}
+textarea{height:60px;}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.day{background:#fff;padding:10px;border:1px solid #ccc;cursor:pointer;}
+.saveBtn{background:#2c3e50;color:#fff;font-size:18px;}
+</style>
+</head>
+
+<body>
+
+<h1>🐾 動物園＋動物病院システム</h1>
+
+<div class="box">
+<h2>園情報</h2>
+<input id="zooName" placeholder="園名">
+<input id="visitors" placeholder="来園者数">
+</div>
+
+<div class="box">
+<h2>動物登録</h2>
+<input id="name" placeholder="名前">
+<input id="type" placeholder="種類">
+<input id="age" placeholder="年齢">
+<input id="health" placeholder="健康状態">
+<button id="addAnimalBtn">登録</button>
+</div>
+
+<div class="box">
+<h2>動物一覧</h2>
+<table>
+<thead><tr>
+<th>名前</th><th>種類</th><th>年齢</th><th>健康</th><th>削除</th>
+</tr></thead>
+<tbody id="animalList"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h2>獣医登録</h2>
+<input id="vetName" placeholder="獣医名">
+<input id="specialty" placeholder="専門">
+<button id="addVetBtn">登録</button>
+</div>
+
+<div class="box">
+<h2>獣医一覧</h2>
+<table>
+<thead><tr><th>名前</th><th>専門</th></tr></thead>
+<tbody id="vetList"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h2>診察カルテ</h2>
+<select id="animalSelect"></select>
+<select id="vetSelect"></select>
+<textarea id="symptom" placeholder="症状"></textarea>
+<textarea id="diagnosis" placeholder="診断"></textarea>
+<textarea id="treatment" placeholder="治療"></textarea>
+<input type="date" id="examDate">
+<button id="addRecordBtn">カルテ追加</button>
+</div>
+
+<div class="box">
+<h2>カルテ履歴</h2>
+<table>
+<thead><tr>
+<th>動物</th><th>獣医</th><th>症状</th><th>診断</th><th>治療</th><th>日付</th><th>削除</th>
+</tr></thead>
+<tbody id="recordList"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h2>診察予約カレンダー</h2>
+<div id="calendar" class="calendar"></div>
+</div>
+
+<!-- ★ここを追加 -->
+<div class="box">
+<button class="saveBtn" onclick="manualSave()">💾 すべて保存</button>
+</div>
+
+<script>
+
+let animals=[],vets=[],records=[],reservations={};
+
+const animalList=document.getElementById("animalList");
+const vetList=document.getElementById("vetList");
+const recordList=document.getElementById("recordList");
+const animalSelect=document.getElementById("animalSelect");
+const vetSelect=document.getElementById("vetSelect");
+
+// ===== 保存 =====
+function saveAll(){
+    const data={
+        animals,vets,records,reservations,
+        zooName:document.getElementById("zooName").value,
+        visitors:document.getElementById("visitors").value
+    };
+    localStorage.setItem("zooSystem",JSON.stringify(data));
+}
+
+// ★手動保存
+function manualSave(){
+    saveAll();
+    alert("すべて保存しました");
+}
+
+// ===== 読込 =====
+function loadAll(){
+    const data=JSON.parse(localStorage.getItem("zooSystem"));
+    if(!data)return;
+    animals=data.animals||[];
+    vets=data.vets||[];
+    records=data.records||[];
+    reservations=data.reservations||{};
+    document.getElementById("zooName").value=data.zooName||"";
+    document.getElementById("visitors").value=data.visitors||"";
+}
+
+// ===== 動物 =====
+document.getElementById("addAnimalBtn").onclick=function(){
+    animals.push({
+        id:Date.now(),
+        name:document.getElementById("name").value,
+        type:document.getElementById("type").value,
+        age:document.getElementById("age").value,
+        health:document.getElementById("health").value
+    });
+    renderAnimals();updateSelects();saveAll();
+};
+
+function renderAnimals(){
+    animalList.innerHTML="";
+    animals.forEach(a=>{
+        animalList.innerHTML+=`
+        <tr>
+        <td>${a.name}</td>
+        <td>${a.type}</td>
+        <td>${a.age}</td>
+        <td>${a.health}</td>
+        <td><button onclick="deleteAnimal(${a.id})">削除</button></td>
+        </tr>`;
+    });
+}
+function deleteAnimal(id){
+    animals=animals.filter(a=>a.id!==id);
+    renderAnimals();updateSelects();saveAll();
+}
+
+// ===== 獣医 =====
+document.getElementById("addVetBtn").onclick=function(){
+    vets.push({
+        id:Date.now(),
+        name:document.getElementById("vetName").value,
+        specialty:document.getElementById("specialty").value
+    });
+    renderVets();updateSelects();saveAll();
+};
+
+function renderVets(){
+    vetList.innerHTML="";
+    vets.forEach(v=>{
+        vetList.innerHTML+=`<tr><td>${v.name}</td><td>${v.specialty}</td></tr>`;
+    });
+}
+
+// ===== select =====
+function updateSelects(){
+    animalSelect.innerHTML="";
+    vetSelect.innerHTML="";
+    animals.forEach(a=>{
+        animalSelect.innerHTML+=`<option value="${a.id}">${a.name}</option>`;
+    });
+    vets.forEach(v=>{
+        vetSelect.innerHTML+=`<option value="${v.id}">${v.name}</option>`;
+    });
+}
+
+// ===== カルテ =====
+document.getElementById("addRecordBtn").onclick=function(){
+    records.push({
+        animalId:Number(animalSelect.value),
+        vetId:Number(vetSelect.value),
+        symptom:document.getElementById("symptom").value,
+        diagnosis:document.getElementById("diagnosis").value,
+        treatment:document.getElementById("treatment").value,
+        date:document.getElementById("examDate").value
+    });
+    renderRecords();saveAll();
+};
+
+function renderRecords(){
+    recordList.innerHTML="";
+    records.forEach((r,index)=>{
+        const a=animals.find(x=>x.id===r.animalId);
+        const v=vets.find(x=>x.id===r.vetId);
+        recordList.innerHTML+=`
+        <tr>
+        <td>${a?a.name:"削除済み"}</td>
+        <td>${v?v.name:""}</td>
+        <td>${r.symptom}</td>
+        <td>${r.diagnosis}</td>
+        <td>${r.treatment}</td>
+        <td>${r.date}</td>
+        <td><button onclick="deleteRecord(${index})">削除</button></td>
+        </tr>`;
+    });
+}
+
+function deleteRecord(index){
+    if(confirm("このカルテを削除しますか？")){
+        records.splice(index,1);
+        renderRecords();
+        saveAll();
+    }
+}
+
+// ===== カレンダー =====
+function createCalendar(){
+    const cal=document.getElementById("calendar");
+    cal.innerHTML="";
+    for(let i=1;i<=30;i++){
+        const date=`2025-04-${String(i).padStart(2,'0')}`;
+        const d=document.createElement("div");
+        d.className="day";
+        d.innerHTML=`${i}<br>${reservations[date]||""}`;
+        d.onclick=function(){
+            const t=prompt("予約入力");
+            if(t){reservations[date]=t;createCalendar();saveAll();}
+        };
+        cal.appendChild(d);
+    }
+}
+
+// ===== 初期化 =====
+loadAll();
+renderAnimals();
+renderVets();
+renderRecords();
+updateSelects();
+createCalendar();
+
+</script>
+
+</body>
+</html>

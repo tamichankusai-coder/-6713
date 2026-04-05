@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>健康チェックシート</title>
+<style>
+body {
+    font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+    background-color: #f5f5f5;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 800px;
+    margin: 30px auto;
+    background-color: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+h1 {
+    text-align: center;
+    color: #333;
+}
+form label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+}
+form input[type="text"],
+form input[type="number"],
+form input[type="date"],
+form select {
+    padding: 6px 10px;
+    margin-top: 5px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-family: inherit; /* 入力欄も明朝体 */
+}
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+.form-row label {
+    flex: 0 0 100px;
+    line-height: 32px;
+}
+.form-row select,
+.form-row input[type="text"] {
+    flex: 1 1 60px;
+}
+button {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    margin-top: 15px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    font-family: inherit; /* ボタンも明朝体 */
+}
+button:hover {
+    background-color: #45a049;
+}
+.result {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e7f4e4;
+    border-radius: 8px;
+    border: 1px solid #b2d8b2;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>健康チェックシート</h1>
+<form id="healthForm">
+    <label for="name">氏名</label>
+    <input type="text" id="name" name="name" required>
+
+    <label for="age">年齢</label>
+    <input type="number" id="age" name="age" min="0" required>
+
+    <label for="date">チェック日</label>
+    <input type="date" id="date" name="date" required>
+
+    <label>現在の体調</label>
+    <div class="form-row">
+        <label for="condition">体調</label>
+        <select id="condition">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="appetite">食欲</label>
+        <select id="appetite">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="sleep">睡眠</label>
+        <select id="sleep">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="expression">表情元気</label>
+        <select id="expression">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="excretion">排泄</label>
+        <select id="excretion">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="medication">服薬状況</label>
+        <select id="medication">
+            <option value="">選択</option><option>〇</option><option>▽</option><option>×</option>
+        </select>
+
+        <label for="temperature">体温(°C)</label>
+        <input type="text" id="temperature">
+
+        <label for="bp_systolic">血圧(上)</label>
+        <input type="text" id="bp_systolic">
+
+        <label for="bp_diastolic">血圧(下)</label>
+        <input type="text" id="bp_diastolic">
+    </div>
+
+    <label for="other">その他気になる症状</label>
+    <input type="text" id="other">
+
+    <button type="submit">すべてを保存</button>
+    <button type="button" id="printBtn">印刷プレビュー</button>
+</form>
+
+<div class="result" id="result" style="display:none;"></div>
+</div>
+
+<script>
+const fields = ['name','age','date','condition','appetite','sleep','expression','excretion','medication','temperature','bp_systolic','bp_diastolic','other'];
+
+window.addEventListener('load', () => {
+    fields.forEach(f => {
+        const el = document.getElementById(f);
+        if(el && localStorage.getItem(f)) el.value = localStorage.getItem(f);
+    });
+});
+
+document.getElementById('healthForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    let resultText = '';
+    fields.forEach(f => {
+        const el = document.getElementById(f);
+        if(el) {
+            localStorage.setItem(f, el.value);
+            const label = el.previousElementSibling ? el.previousElementSibling.innerText : f;
+            resultText += `<strong>${label}:</strong> ${el.value || 'なし'}<br>`;
+        }
+    });
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = resultText;
+    resultDiv.style.display = 'block';
+});
+
+document.getElementById('printBtn').addEventListener('click', function(){
+    const resultDiv = document.getElementById('result');
+    if(resultDiv.style.display==='none'){
+        alert('まず「すべてを保存」で内容を表示してください');
+        return;
+    }
+    const w = window.open('', '', 'width=800,height=600');
+    w.document.write('<html><head><title>印刷プレビュー</title>');
+    w.document.write('<style>body{font-family:"Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;}</style>');
+    w.document.write('</head><body>');
+    w.document.write('<h1>健康チェックシート</h1>');
+    w.document.write(resultDiv.innerHTML);
+    w.document.write('</body></html>');
+    w.document.close();
+    w.focus();
+    w.print();
+});
+</script>
+</body>
+</html>

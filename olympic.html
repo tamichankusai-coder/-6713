@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>IOC競技・種目・結果・メダル管理システム</title>
+
+<!-- 明朝フォント -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+body {
+  margin:0;
+  font-family: "Noto Serif JP","Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  background:#f5f5f5;
+  letter-spacing:0.05em; /* 字間を広げる */
+  line-height:1.8;
+}
+
+/* ヘッダー紋章風 */
+header {
+  background: linear-gradient(135deg,#0033a0,#0055cc);
+  color:#fff;
+  padding:30px 20px;
+  text-align:center;
+  position:relative;
+}
+header h1 {
+  margin:0;
+  font-size:2em;
+  letter-spacing:0.1em;
+}
+header::before {
+  content:"🏅"; 
+  font-size:3em;
+  position:absolute;
+  top:50%;
+  left:20px;
+  transform:translateY(-50%);
+}
+
+nav{
+  background:#ddd;
+  padding:10px;
+  text-align:center;
+}
+
+section{
+  background:#fff;
+  max-width:1300px;
+  margin:20px auto;
+  padding:20px;
+  border-radius:8px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.1);
+}
+
+button{
+  padding:6px 14px;
+  margin:4px;
+  font-family:inherit;
+  cursor:pointer;
+}
+
+input,textarea,select{
+  width:100%;
+  padding:6px;
+  margin-bottom:8px;
+  font-family:inherit;
+}
+
+textarea{min-height:120px}
+
+.flex{display:flex;gap:20px}
+
+ul{padding-left:18px}
+
+li{padding:4px}
+
+li:hover{background:#eef}
+
+.active{background:#cce}
+
+h3{
+  border-left:5px solid #0033a0;
+  padding-left:10px;
+}
+
+label{font-weight:bold}
+
+table{
+  width:100%;
+  border-collapse:collapse
+}
+
+th,td{
+  border:1px solid #ccc;
+  padding:6px;
+  text-align:center
+}
+
+th{
+  background:#f0f0f0;
+}
+
+.medal-gold{color:#FFD700;font-weight:bold}
+.medal-silver{color:#C0C0C0;font-weight:bold}
+.medal-bronze{color:#cd7f32;font-weight:bold}
+
+.small{
+  font-size:12px;
+  color:#666
+}
+
+/* 印刷用 */
+@media print{
+  nav,button{display:none}
+  section{box-shadow:none;margin:0}
+  body{margin:15mm}
+  header{background:none;color:#000;position:static;text-align:center}
+  header::before{content:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>IOC公式 オリンピック管理システム</h1>
+<p>競技・種目・結果・メダル完全統合</p>
+</header>
+
+<nav>
+<button onclick="view='admin';render()">管理</button>
+<button onclick="view='public';render()">公開</button>
+</nav>
+
+<section id="app"></section>
+
+<script>
+let view="admin";
+let selectedSport=null;
+let selectedEvent=null;
+let editEvent=null;
+const STORAGE_KEY="IOC_OLYMPIC_DB";
+
+let db=localStorage.getItem(STORAGE_KEY)
+? JSON.parse(localStorage.getItem(STORAGE_KEY))
+:{
+season:"summer",
+years:{
+summer:{
+info:{name:"夏季オリンピック",place:"",start:"",end:""},
+sports:{
+"陸上競技":{"100m":{}, "200m":{}, "マラソン":{}},
+"水泳":{"100m自由形":{}, "200m自由形":{}},
+"柔道":{"男子60kg":{}, "女子48kg":{}}
+}},
+winter:{
+info:{name:"冬季オリンピック",place:"",start:"",end:""},
+sports:{
+"アルペンスキー":{"回転":{}, "大回転":{}},
+"フィギュアスケート":{"男子シングル":{}, "女子シングル":{}},
+"スピードスケート":{"500m":{}, "1000m":{}}
+}}
+}
+};
+
+function saveDB(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
+
+function render(){
+const y=db.years[db.season];
+const app=document.getElementById("app");
+
+if(view==="admin"){
+app.innerHTML=`
+<h3>大会区分</h3>
+<select onchange="db.season=this.value;selectedSport=null;selectedEvent=null;saveDB();render()">
+<option value="summer"${db.season==="summer"?" selected":""}>夏季</option>
+<option value="winter"${db.season==="winter"?" selected":""}>冬季</option>
+</select>
+
+<h3>大会基本情報</h3>
+<label>大会名</label>
+<input id="infoName" value="${y.info.name}">
+<label>開催地</label>
+<input id="infoPlace" value="${y.info.place}">
+<label>開始日</label>
+<input id="infoStart" value="${y.info.start}">
+<label>終了日</label>
+<input id="infoEnd" value="${y.info.end}">
+<button onclick="saveInfo()">すべて保存</button>
+
+<div class="flex">
+
+<div style="width:30%">
+<h3>競技</h3>
+<ul>
+${Object.keys(y.sports).map(s=>`
+<li class="${s===selectedSport?'active':''}">
+<span onclick="selectSport('${s}')">${s}</span>
+<button onclick="deleteSport('${s}')">削除</button>
+</li>`).join("")}
+</ul>
+<input id="newSport" placeholder="競技追加">
+<button onclick="saveAllSports()">すべて保存</button>
+</div>
+
+<div style="width:30%">
+<h3>種目</h3>
+${selectedSport?`
+<ul>
+${Object.keys(y.sports[selectedSport]).map(e=>`
+<li class="${e===selectedEvent?'active':''}">
+${editEvent===e
+? `<input id="editEventName" value="${e}">
+<button onclick="saveEditEvent('${e}')">保存</button>`
+: `<span onclick="selectEvent('${e}')">${e}</span>
+<button onclick="startEditEvent('${e}')">編集</button>
+<button onclick="deleteEvent('${e}')">削除</button>`}
+</li>`).join("")}
+</ul>
+<input id="newEvent" placeholder="種目追加">
+<button onclick="addEvent()">保存</button>
+`:"<p class='small'>競技を選択してください</p>"}
+</div>
+
+<div style="width:40%">
+<h3>種目詳細</h3>
+${selectedEvent?`
+<label>種目説明</label>
+<textarea id="eventDesc">${y.sports[selectedSport][selectedEvent].desc||""}</textarea>
+<label>結果</label>
+<textarea id="eventResult">${y.sports[selectedSport][selectedEvent].result||""}</textarea>
+<label>メダル</label>
+<table>
+<tr><th class="medal-gold">金</th><th class="medal-silver">銀</th><th class="medal-bronze">銅</th></tr>
+<tr>
+<td><input id="gold" value="${y.sports[selectedSport][selectedEvent].gold||""}"></td>
+<td><input id="silver" value="${y.sports[selectedSport][selectedEvent].silver||""}"></td>
+<td><input id="bronze" value="${y.sports[selectedSport][selectedEvent].bronze||""}"></td>
+</tr>
+</table>
+<button onclick="saveEvent()">すべて保存</button>
+`:"<p class='small'>種目を選択してください</p>"}
+</div>
+
+</div>
+`;
+}else{
+app.innerHTML=`
+<button onclick="window.print()">📄 IOC公式帳票出力</button>
+<h3>${y.info.name}</h3>
+<p><b>開催地：</b>${y.info.place}<br>
+<b>期間：</b>${y.info.start} ～ ${y.info.end}</p>
+
+${Object.keys(y.sports).map(s=>`
+<h4>${s}</h4>
+${Object.keys(y.sports[s]).map(e=>`
+<b>${e}</b>
+<p>${y.sports[s][e].desc||""}</p>
+<p>${y.sports[s][e].result||""}</p>
+<p class="medal-gold">🥇${y.sports[s][e].gold||""}</p>
+<p class="medal-silver">🥈${y.sports[s][e].silver||""}</p>
+<p class="medal-bronze">🥉${y.sports[s][e].bronze||""}</p>
+`).join("")}
+`).join("")}
+`;
+}
+}
+
+function saveInfo(){
+const y=db.years[db.season];
+y.info.name=infoName.value;
+y.info.place=infoPlace.value;
+y.info.start=infoStart.value;
+y.info.end=infoEnd.value;
+saveDB();alert("すべて保存しました");render();
+}
+
+function saveEvent(){
+const e=db.years[db.season].sports[selectedSport][selectedEvent];
+e.desc=eventDesc.value;
+e.result=eventResult.value;
+e.gold=gold.value;
+e.silver=silver.value;
+e.bronze=bronze.value;
+saveDB();alert("すべて保存しました");render();
+}
+
+function saveAllSports(){
+const v=newSport.value.trim();
+if(!v)return;
+db.years[db.season].sports[v]={};
+selectedSport=v;
+saveDB();render();
+}
+function selectSport(s){selectedSport=s;selectedEvent=null;editEvent=null;render();}
+function selectEvent(e){selectedEvent=e;render();}
+function addEvent(){const v=newEvent.value.trim();if(!v)return;db.years[db.season].sports[selectedSport][v]={};saveDB();render();}
+function deleteSport(s){if(confirm("削除しますか？")){delete db.years[db.season].sports[s];selectedSport=null;saveDB();render();}}
+function deleteEvent(e){if(confirm("削除しますか？")){delete db.years[db.season].sports[selectedSport][e];selectedEvent=null;saveDB();render();}}
+function startEditEvent(e){editEvent=e;render();}
+function saveEditEvent(o){
+const n=editEventName.value.trim();if(!n)return;
+const d=db.years[db.season].sports[selectedSport][o];
+delete db.years[db.season].sports[selectedSport][o];
+db.years[db.season].sports[selectedSport][n]=d;
+saveDB();editEvent=null;selectedEvent=n;render();
+}
+
+render();
+</script>
+
+</body>
+</html>

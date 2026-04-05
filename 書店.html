@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>書店経営システム（カレンダー強化版）</title>
+
+<style>
+body{font-family:"Meiryo";background:#eef3f8;padding:20px;}
+h1{text-align:center;}
+
+.box{
+    background:white;
+    padding:15px;
+    margin-bottom:20px;
+    border-radius:10px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+input,select,button{
+    padding:8px;
+    margin:5px;
+}
+
+input[type="date"]{
+    font-size:18px;
+    padding:10px;
+}
+
+button{
+    background:#3498db;
+    color:white;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+button:hover{background:#2980b9;}
+
+.deleteBtn{background:#e74c3c;}
+.deleteBtn:hover{background:#c0392b;}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+th,td{
+    border:1px solid #ccc;
+    padding:8px;
+    text-align:center;
+}
+
+/* カレンダー */
+.calendar{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:5px;
+}
+.day{
+    background:#fff;
+    border:1px solid #ccc;
+    padding:10px;
+    min-height:80px;
+    cursor:pointer;
+}
+.day:hover{background:#dfefff;}
+.event{
+    font-size:12px;
+    color:#e67e22;
+}
+
+.total{
+    font-size:18px;
+    font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<h1>📚 書店経営システム</h1>
+
+<div class="box">
+<h2>🏪 書店情報</h2>
+<input id="shopName" placeholder="書店名">
+</div>
+
+<div class="box">
+<h2>📖 本の登録（入庫日付き）</h2>
+<input id="title" placeholder="タイトル">
+<input id="author" placeholder="著者">
+<input id="price" type="number" placeholder="価格">
+<input id="stock" type="number" placeholder="在庫">
+<br>
+📅 入庫日：
+<input id="arrivalDate" type="date">
+<br>
+<button onclick="addBook()">登録</button>
+</div>
+
+<div class="box">
+<h2>📅 入庫カレンダー</h2>
+<div id="calendar"></div>
+<div id="selectedInfo"></div>
+</div>
+
+<div class="box">
+<h2>👤 顧客登録</h2>
+<input id="custName" placeholder="顧客名">
+<input id="custTel" placeholder="電話番号">
+<button onclick="addCustomer()">登録</button>
+</div>
+
+<div class="box">
+<h2>🔍 本検索</h2>
+<input id="search" placeholder="タイトル・著者で検索" onkeyup="render()">
+</div>
+
+<div class="box">
+<h2>📦 在庫一覧</h2>
+<table>
+<thead>
+<tr>
+<th>タイトル</th>
+<th>著者</th>
+<th>価格</th>
+<th>在庫</th>
+<th>入庫日</th>
+<th>顧客</th>
+<th>販売</th>
+</tr>
+</thead>
+<tbody id="bookTable"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h2>💰 売上履歴</h2>
+<table>
+<thead>
+<tr>
+<th>日付</th>
+<th>タイトル</th>
+<th>数量</th>
+<th>顧客</th>
+<th>売上</th>
+<th>削除</th>
+</tr>
+</thead>
+<tbody id="salesTable"></tbody>
+</table>
+</div>
+
+<div class="box">
+<h2>📊 売上</h2>
+<div id="totalSales" class="total"></div>
+<div id="totalCount" class="total"></div>
+</div>
+
+<div class="box">
+<button onclick="manualSave()">💾 すべて保存</button>
+</div>
+
+<script>
+let books = JSON.parse(localStorage.getItem("books")||"[]");
+let sales = JSON.parse(localStorage.getItem("sales")||"[]");
+let customers = JSON.parse(localStorage.getItem("customers")||"[]");
+
+shopName.value = localStorage.getItem("shopName")||"";
+
+function save(){
+    localStorage.setItem("books", JSON.stringify(books));
+    localStorage.setItem("sales", JSON.stringify(sales));
+    localStorage.setItem("customers", JSON.stringify(customers));
+    localStorage.setItem("shopName", shopName.value);
+}
+
+function manualSave(){
+    save();
+    alert("保存しました");
+}
+
+function addBook(){
+    books.push({
+        title:title.value,
+        author:author.value,
+        price:Number(price.value),
+        stock:Number(stock.value),
+        date:arrivalDate.value
+    });
+    save();
+    render();
+}
+
+function addCustomer(){
+    customers.push({name:custName.value,tel:custTel.value});
+    save();
+    render();
+}
+
+function sell(index){
+    let qty = Number(prompt("販売数"));
+    if(qty<=0 || qty>books[index].stock) return;
+
+    let custIndex = document.getElementById("custSelect"+index).value;
+    let custName = custIndex!=="" ? customers[custIndex].name : "一般";
+
+    books[index].stock -= qty;
+
+    sales.push({
+        date:new Date().toLocaleString(),
+        title:books[index].title,
+        qty:qty,
+        customer:custName,
+        total:qty * books[index].price
+    });
+
+    save();
+    render();
+}
+
+function deleteSale(i){
+    if(!confirm("削除しますか？")) return;
+    sales.splice(i,1);
+    save();
+    render();
+}
+
+/* カレンダー生成 */
+function drawCalendar(){
+    const cal = document.getElementById("calendar");
+    cal.innerHTML="";
+    cal.className="calendar";
+
+    let date = new Date();
+    let year = date.getFullYear();
+    let month = date.getMonth();
+
+    let firstDay = new Date(year, month, 1).getDay();
+    let lastDate = new Date(year, month+1, 0).getDate();
+
+    for(let i=0;i<firstDay;i++){
+        cal.innerHTML += `<div></div>`;
+    }
+
+    for(let d=1; d<=lastDate; d++){
+        let full = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+        let events = books.filter(b=>b.date===full);
+
+        let eventHTML = events.map(e=>`<div class="event">📚${e.title}</div>`).join("");
+
+        cal.innerHTML += `
+        <div class="day" onclick="showDay('${full}')">
+        <b>${d}</b>
+        ${eventHTML}
+        </div>`;
+    }
+}
+
+function showDay(date){
+    let list = books.filter(b=>b.date===date);
+    let html = `<h3>${date} 入庫一覧</h3>`;
+    list.forEach(b=>{
+        html += `<div>📚 ${b.title}</div>`;
+    });
+    if(list.length===0) html += "なし";
+    document.getElementById("selectedInfo").innerHTML = html;
+}
+
+function render(){
+    const keyword = search.value.toLowerCase();
+    bookTable.innerHTML="";
+
+    books.forEach((b,i)=>{
+        if(b.title.toLowerCase().includes(keyword) || b.author.toLowerCase().includes(keyword)){
+            let custOptions='<option value="">一般</option>';
+            customers.forEach((c,ci)=>{
+                custOptions+=`<option value="${ci}">${c.name}</option>`;
+            });
+
+            bookTable.innerHTML+=`
+            <tr>
+            <td>${b.title}</td>
+            <td>${b.author}</td>
+            <td>¥${b.price.toLocaleString()}</td>
+            <td>${b.stock}</td>
+            <td>${b.date||""}</td>
+            <td><select id="custSelect${i}">${custOptions}</select></td>
+            <td><button onclick="sell(${i})">販売</button></td>
+            </tr>`;
+        }
+    });
+
+    let total=0,count=0;
+    salesTable.innerHTML="";
+
+    sales.forEach((s,i)=>{
+        total+=s.total;
+        count+=s.qty;
+
+        salesTable.innerHTML+=`
+        <tr>
+        <td>${s.date}</td>
+        <td>${s.title}</td>
+        <td>${s.qty}</td>
+        <td>${s.customer}</td>
+        <td>¥${s.total.toLocaleString()}</td>
+        <td><button class="deleteBtn" onclick="deleteSale(${i})">削除</button></td>
+        </tr>`;
+    });
+
+    totalSales.innerText="総売上: ¥"+total.toLocaleString();
+    totalCount.innerText="販売冊数: "+count+"冊";
+
+    drawCalendar();
+}
+
+render();
+</script>
+
+</body>
+</html>

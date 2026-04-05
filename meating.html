@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>会議録</title>
+
+  <!-- 明朝体フォント -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family:
+        "Noto Serif JP",
+        "Yu Mincho",
+        "Hiragino Mincho ProN",
+        "MS Mincho",
+        serif;
+      margin: 40px;
+      line-height: 1.6;
+    }
+
+    /* すべての要素に明朝体を継承 */
+    * {
+      font-family: inherit;
+    }
+
+    h1 {
+      border-bottom: 2px solid #333;
+      padding-bottom: 5px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    th, td {
+      border: 1px solid #999;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f0f0f0;
+      width: 20%;
+    }
+
+    .section {
+      margin-bottom: 30px;
+    }
+
+    input, textarea {
+      width: 95%;
+      padding: 6px;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+
+    textarea {
+      height: 100px;
+    }
+
+    .actions {
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 8px 16px;
+      font-size: 14px;
+      margin-right: 10px;
+      font-family: inherit;
+    }
+
+    /* 印刷・PDF用（枠線あり） */
+    @media print {
+      button {
+        display: none;
+      }
+      input, textarea {
+        border: none;
+        padding: 0;
+      }
+      table, th, td {
+        border: 1px solid #000;
+      }
+      body {
+        margin: 20mm;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h1>会議録</h1>
+
+<div class="section">
+  <table>
+    <tr><th>会議名</th><td><input type="text" id="meetingName"></td></tr>
+    <tr><th>日時</th><td><input type="date" id="meetingDate"></td></tr>
+    <tr><th>場所</th><td><input type="text" id="meetingPlace"></td></tr>
+    <tr><th>出席者</th><td><input type="text" id="attendees"></td></tr>
+    <tr><th>欠席者</th><td><input type="text" id="absentees"></td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>議題</h2>
+  <ol>
+    <li>進捗報告</li>
+    <li>課題の確認</li>
+    <li>次回までの対応</li>
+  </ol>
+</div>
+
+<div class="section">
+  <h2>議事内容</h2>
+  <h3>1. 進捗報告</h3>
+  <textarea id="progress"></textarea>
+  <h3>2. 課題の確認</h3>
+  <textarea id="issues"></textarea>
+</div>
+
+<div class="section">
+  <h2>決定事項・ToDo</h2>
+  <table id="todoTable">
+    <tr>
+      <th>内容</th>
+      <th>担当</th>
+      <th>期限</th>
+    </tr>
+  </table>
+  <button onclick="addTodo()">＋ ToDo追加</button>
+</div>
+
+<div class="section">
+  <h2>次回会議</h2>
+  <p><input type="date" id="nextMeeting"></p>
+</div>
+
+<div class="actions">
+  <button onclick="saveAll()">すべて保存</button>
+  <button onclick="window.print()">PDF／印刷</button>
+</div>
+
+<script>
+  let todoCount = 0;
+
+  function addTodo(content = '', owner = '', due = '') {
+    todoCount++;
+    const table = document.getElementById('todoTable');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" id="todo${todoCount}" value="${content}"></td>
+      <td><input type="text" id="owner${todoCount}" value="${owner}"></td>
+      <td><input type="date" id="due${todoCount}" value="${due}"></td>
+    `;
+  }
+
+  function saveAll() {
+    const data = {
+      meetingName: meetingName.value,
+      meetingDate: meetingDate.value,
+      meetingPlace: meetingPlace.value,
+      attendees: attendees.value,
+      absentees: absentees.value,
+      progress: progress.value,
+      issues: issues.value,
+      nextMeeting: nextMeeting.value,
+      todos: []
+    };
+
+    for (let i = 1; i <= todoCount; i++) {
+      data.todos.push({
+        content: document.getElementById(`todo${i}`).value,
+        owner: document.getElementById(`owner${i}`).value,
+        due: document.getElementById(`due${i}`).value
+      });
+    }
+
+    localStorage.setItem('meetingData', JSON.stringify(data));
+    alert('すべて保存しました');
+  }
+
+  window.onload = function () {
+    const saved = localStorage.getItem('meetingData');
+    if (!saved) {
+      addTodo();
+      return;
+    }
+
+    const data = JSON.parse(saved);
+    meetingName.value = data.meetingName || '';
+    meetingDate.value = data.meetingDate || '';
+    meetingPlace.value = data.meetingPlace || '';
+    attendees.value = data.attendees || '';
+    absentees.value = data.absentees || '';
+    progress.value = data.progress || '';
+    issues.value = data.issues || '';
+    nextMeeting.value = data.nextMeeting || '';
+
+    data.todos.forEach(t => addTodo(t.content, t.owner, t.due));
+  };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>精神科予約管理システム</title>
+
+<style>
+body{
+    font-family:"Yu Mincho","Hiragino Mincho ProN","MS Mincho","Noto Serif JP",serif;
+    background:#eef3f8;
+    margin:0;
+    color:#333;
+}
+#topDate{
+    background:#1a5fb4;
+    color:#fff;
+    padding:12px;
+    text-align:center;
+    font-size:20px;
+    font-weight:bold;
+}
+header{
+    background:linear-gradient(90deg,#2c7be5,#1a5fb4);
+    color:#fff;
+    padding:20px;
+}
+main{
+    padding:40px;
+    max-width:1400px;
+    margin:auto;
+}
+section{
+    background:#fff;
+    padding:25px;
+    border-radius:10px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    margin-bottom:30px;
+}
+input, textarea, select{
+    width:100%;
+    padding:8px;
+    margin-bottom:10px;
+    font-family:inherit;
+    font-size:16px;
+}
+textarea{height:120px;}
+button{
+    padding:6px 12px;
+    background:#2c7be5;
+    color:#fff;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+button:hover{background:#1a5fb4;}
+table{border-collapse:collapse;width:100%;}
+th,td{border:1px solid #ddd;padding:8px;text-align:center;}
+#calendar td{
+    height:150px;
+    vertical-align:top;
+    cursor:pointer;
+    position:relative;
+}
+.memo{
+    font-size:13px;
+    margin-top:4px;
+    padding:4px;
+    border-radius:4px;
+    color:#000;
+    position:relative;
+}
+.memo button{
+    position:absolute;
+    right:2px;
+    top:2px;
+    font-size:10px;
+    padding:1px 4px;
+    background:#d9534f;
+}
+.hidden{display:none;}
+.patient-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:15px;
+}
+.login-box{
+    background:#fff;
+    padding:40px;
+    border-radius:10px;
+    text-align:center;
+    margin-top:100px;
+    width:350px;
+    margin-left:auto;
+    margin-right:auto;
+}
+.login-box input{
+    width:200px;
+}
+.historyBox{
+border:1px solid #ddd;
+padding:10px;
+margin-top:10px;
+background:#fafafa;
+position:relative;
+}
+.historyDelete{
+position:absolute;
+right:5px;
+top:5px;
+background:#d9534f;
+font-size:12px;
+padding:2px 6px;
+}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+<form onsubmit="event.preventDefault(); checkPassword();">
+<div class="login-box">
+<h2>精神科予約管理システム</h2>
+<p>パスワードを入力してください</p>
+<input type="password" id="passwordInput"><br><br>
+<button type="submit">ログイン</button>
+<p id="loginError" style="color:red;"></p>
+</div>
+</form>
+</div>
+
+<div id="topDate" class="hidden"></div>
+
+<header id="mainHeader" class="hidden">
+<h1>精神科予約管理システム</h1>
+</header>
+
+<main id="mainContent" class="hidden">
+
+<section>
+
+<h3>患者検索</h3>
+<input id="searchName" placeholder="名前を入力">
+<button onclick="searchPatient()">検索</button>
+<button onclick="deletePatient()" style="background:#d9534f;">患者データ削除</button>
+<hr>
+
+<h2>患者基本情報（自動保存）</h2>
+
+<div class="patient-grid">
+<input id="p_name" placeholder="氏名">
+<input id="p_kana" placeholder="フリガナ">
+
+<select id="p_gender">
+<option value="">性別</option>
+<option value="男性">男性</option>
+<option value="女性">女性</option>
+<option value="その他">その他</option>
+</select>
+
+<input id="p_birth" placeholder="生年月日">
+<input id="p_age" placeholder="年齢" readonly>
+<input id="p_phone" placeholder="電話番号">
+<input id="p_address" placeholder="住所">
+<input id="p_personal" placeholder="個人番号">
+</div>
+
+<button onclick="toggleDetail()">詳細入力を表示</button>
+
+<div id="detailSection" class="hidden" style="margin-top:20px;">
+
+<h3>診療詳細情報（自動保存）</h3>
+
+<input id="p_disease" placeholder="病名">
+<textarea id="p_counseling" placeholder="カウンセリング内容"></textarea>
+<textarea id="p_medication" placeholder="服薬状況"></textarea>
+
+<label>予約年月日</label>
+<input id="p_reserve" readonly>
+
+<label>担当医</label>
+<input id="p_doctor" value="院長" readonly>
+
+<h3 style="margin-top:30px;">カルテ（自動保存）</h3>
+<textarea id="p_karte" style="height:200px;"></textarea>
+
+<button onclick="saveKarteHistory()">診察を履歴保存</button>
+
+<h3 style="margin-top:30px;">カルテ履歴</h3>
+<div id="karteHistory"></div>
+
+</div>
+</section>
+
+<h2>予約カレンダー</h2>
+
+<div style="text-align:center;margin-bottom:10px;">
+<button onclick="prevMonth()">◀</button>
+<span id="calTitle" style="font-size:20px;font-weight:bold;"></span>
+<button onclick="nextMonth()">▶</button>
+</div>
+
+<table id="calendar"></table>
+
+</main>
+
+<script>
+
+const PASSWORD="671371";
+let currentYear,currentMonth;
+
+function isHoliday(date){
+    const holidays={
+        "1-1":true,"2-11":true,"2-23":true,"4-29":true,
+        "5-3":true,"5-4":true,"5-5":true,"8-11":true,
+        "11-3":true,"11-23":true
+    };
+    return holidays[(date.getMonth()+1)+"-"+date.getDate()];
+}
+
+function checkPassword(){
+    if(passwordInput.value===PASSWORD){
+        loginScreen.style.display="none";
+        mainHeader.classList.remove("hidden");
+        mainContent.classList.remove("hidden");
+        topDate.classList.remove("hidden");
+        showToday();
+        const today=new Date();
+        currentYear=today.getFullYear();
+        currentMonth=today.getMonth();
+        createCalendar();
+    }else{
+        loginError.textContent="パスワードが違います";
+    }
+}
+
+function showToday(){
+    const now=new Date();
+    topDate.textContent="本日："+now.getFullYear()+"年"+(now.getMonth()+1)+"月"+now.getDate()+"日";
+}
+
+p_birth.addEventListener("input",function(){
+    let birth=new Date(p_birth.value);
+    if(!birth.getTime()) return;
+
+    let today=new Date();
+    let age=today.getFullYear()-birth.getFullYear();
+
+    let m=today.getMonth()-birth.getMonth();
+    if(m<0 || (m===0 && today.getDate()<birth.getDate())) age--;
+
+    p_age.value=age+"歳";
+});
+
+function getPatients(){
+    return JSON.parse(localStorage.getItem("psy_patients"))||{};
+}
+
+function savePatient(){
+    let name=p_name.value.trim();
+    if(!name)return;
+
+    let patients=getPatients();
+
+    patients[name]={
+        p_name:p_name.value,
+        p_kana:p_kana.value,
+        p_gender:p_gender.value,
+        p_birth:p_birth.value,
+        p_age:p_age.value,
+        p_phone:p_phone.value,
+        p_address:p_address.value,
+        p_personal:p_personal.value,
+        p_disease:p_disease.value,
+        p_counseling:p_counseling.value,
+        p_medication:p_medication.value,
+        p_reserve:p_reserve.value,
+        p_doctor:p_doctor.value,
+        p_karte:p_karte.value
+    };
+
+    localStorage.setItem("psy_patients",JSON.stringify(patients));
+}
+
+document.addEventListener("input",function(e){
+    if(e.target.id.startsWith("p_")){
+        savePatient();
+    }
+});
+
+function searchPatient(){
+    let name=searchName.value.trim();
+    if(!name){alert("名前を入力してください");return;}
+
+    let patients=getPatients();
+
+    if(!patients[name]){
+        alert("患者が見つかりません");
+        return;
+    }
+
+    let data=patients[name];
+
+    for(let key in data){
+        if(document.getElementById(key)){
+            document.getElementById(key).value=data[key];
+        }
+    }
+
+    loadHistory(name);
+
+    alert("患者データを読み込みました");
+}
+
+function deletePatient(){
+
+let name=p_name.value.trim();
+if(!name){alert("患者名がありません");return;}
+
+if(!confirm("この患者データをすべて削除しますか？")) return;
+
+let patients=getPatients();
+delete patients[name];
+localStorage.setItem("psy_patients",JSON.stringify(patients));
+
+let history=getHistory();
+delete history[name];
+localStorage.setItem("karte_history",JSON.stringify(history));
+
+alert("患者データを削除しました");
+
+location.reload();
+}
+
+function toggleDetail(){
+    detailSection.classList.toggle("hidden");
+}
+
+function getHistory(){
+    return JSON.parse(localStorage.getItem("karte_history"))||{};
+}
+
+function deleteHistory(name,index){
+
+let history=getHistory();
+
+history[name].splice(index,1);
+
+if(history[name].length===0) delete history[name];
+
+localStorage.setItem("karte_history",JSON.stringify(history));
+
+loadHistory(name);
+}
+
+function saveKarteHistory(){
+
+    let name=p_name.value.trim();
+    if(!name){alert("患者名を入力してください");return;}
+
+    let history=getHistory();
+    if(!history[name])history[name]=[];
+
+    let now=new Date();
+
+    history[name].push({
+        date:now.getFullYear()+"-"+(now.getMonth()+1)+"-"+now.getDate(),
+        doctor:p_doctor.value,
+        karte:p_karte.value
+    });
+
+    localStorage.setItem("karte_history",JSON.stringify(history));
+
+    loadHistory(name);
+
+    alert("カルテ履歴を保存しました");
+}
+
+function loadHistory(name){
+
+    let history=getHistory();
+    let box=document.getElementById("karteHistory");
+    box.innerHTML="";
+
+    if(!history[name]) return;
+
+    history[name].forEach((h,i)=>{
+        box.innerHTML+=`
+        <div class="historyBox">
+        <button class="historyDelete" onclick="deleteHistory('${name}',${i})">×</button>
+        <b>${h.date}</b> 医師:${h.doctor}<br>
+        ${h.karte}
+        </div>`;
+    });
+}
+
+function getData(){
+    return JSON.parse(localStorage.getItem("calendar_multi"))||{};
+}
+function saveData(data){
+    localStorage.setItem("calendar_multi",JSON.stringify(data));
+}
+
+function addReservation(dateKey){
+    p_reserve.value=dateKey;
+    savePatient();
+
+    let name=prompt("お名前を入力してください");
+    if(!name)return;
+    let time=prompt("時間を入力してください");
+    if(!time)return;
+
+    let data=getData();
+    if(!data[dateKey])data[dateKey]=[];
+    let color=`hsl(${Math.random()*360},70%,80%)`;
+    data[dateKey].push({name,time,color});
+    saveData(data);
+    createCalendar();
+}
+
+function deleteReservation(dateKey,index){
+    let data=getData();
+    data[dateKey].splice(index,1);
+    if(data[dateKey].length===0)delete data[dateKey];
+    saveData(data);
+    createCalendar();
+}
+
+function prevMonth(){
+    currentMonth--;
+    if(currentMonth<0){currentMonth=11;currentYear--;}
+    createCalendar();
+}
+function nextMonth(){
+    currentMonth++;
+    if(currentMonth>11){currentMonth=0;currentYear++;}
+    createCalendar();
+}
+
+function createCalendar(){
+    calTitle.textContent=currentYear+"年"+(currentMonth+1)+"月";
+
+    const first=new Date(currentYear,currentMonth,1);
+    const last=new Date(currentYear,currentMonth+1,0);
+
+    let html="<tr>";
+    ["日","月","火","水","木","金","土"].forEach((d,i)=>{
+        let color="";
+        if(i==0)color="red";
+        if(i==6)color="blue";
+        html+=`<th style="color:${color}">${d}</th>`;
+    });
+    html+="</tr><tr>";
+
+    for(let i=0;i<first.getDay();i++)html+="<td></td>";
+
+    let data=getData();
+
+    for(let d=1;d<=last.getDate();d++){
+
+        const date=new Date(currentYear,currentMonth,d);
+        const key=currentYear+"-"+(currentMonth+1)+"-"+d;
+
+        let color="";
+        if(date.getDay()==0 || isHoliday(date))color="red";
+        else if(date.getDay()==6)color="blue";
+
+        html+=`<td onclick="addReservation('${key}')">
+        <strong style="color:${color}">${d}</strong>`;
+
+        if(data[key]){
+            data[key].forEach((item,i)=>{
+                html+=`
+                <div class="memo" style="background:${item.color}">
+                ${item.time} ${item.name}様
+                <button onclick="event.stopPropagation();deleteReservation('${key}',${i})">×</button>
+                </div>`;
+            });
+        }
+
+        html+="</td>";
+
+        if(date.getDay()==6)
+            html+="</tr><tr>";
+    }
+
+    html+="</tr>";
+    calendar.innerHTML=html;
+}
+
+</script>
+</body>
+</html>

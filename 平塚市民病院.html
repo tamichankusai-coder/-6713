@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>病院予約管理システム</title>
+
+<style>
+
+/* ===== 全体明朝体 ===== */
+body {
+  font-family:
+  "Yu Mincho","游明朝",
+  "Hiragino Mincho ProN",
+  "MS Mincho",
+  serif;
+  background:#f2f5f8;
+  margin:0;
+  color:#222;
+}
+
+/* ===== ヘッダー ===== */
+header {
+  background:#1f3a5f;
+  color:#fff;
+  padding:25px;
+  text-align:center;
+  border-bottom:4px solid #bfa046;
+}
+
+header h1{
+  font-size:28px;
+  letter-spacing:2px;
+}
+
+/* ===== メイン ===== */
+main {
+  padding:40px;
+  max-width:1200px;
+  margin:auto;
+}
+
+/* ===== 入力フォーム ===== */
+label{
+  font-weight:bold;
+  margin-top:10px;
+  display:block;
+}
+
+input, textarea {
+  width:350px;
+  padding:8px;
+  margin-top:4px;
+  margin-bottom:12px;
+  border:1px solid #999;
+  background:#fff;
+  font-size:14px;
+  font-family:inherit;
+}
+
+textarea {
+  height:70px;
+}
+
+textarea.karte {
+  width:100%;
+  height:200px;
+}
+
+/* ===== ボタン ===== */
+button {
+  padding:6px 14px;
+  background:#1f3a5f;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  font-family:inherit;
+  font-size:14px;
+  margin-top:5px;
+}
+
+button:hover{
+  background:#2d5d8a;
+}
+
+.smallBtn {
+  background:#8b1e1e;
+  font-size:12px;
+  padding:4px 8px;
+}
+
+.saveAll {
+  margin-top:40px;
+  background:#2e6b3f;
+}
+
+.loadAll {
+  margin-left:10px;
+  background:#5a3c88;
+}
+
+/* ===== 診療科リンク ===== */
+a.deptLink {
+  color:#1f3a5f;
+  text-decoration:underline;
+  cursor:pointer;
+  margin-right:15px;
+}
+
+/* ===== テーブル ===== */
+table {
+  border-collapse:collapse;
+  width:100%;
+  margin-top:20px;
+  background:#fff;
+}
+
+th {
+  background:#e8edf2;
+  font-weight:bold;
+}
+
+th, td {
+  border:1px solid #aaa;
+  padding:6px;
+  text-align:left;
+  font-size:13px;
+}
+
+tr:nth-child(even){
+  background:#f7f9fb;
+}
+
+.hidden { display:none; }
+
+h2{
+  border-left:6px solid #1f3a5f;
+  padding-left:10px;
+  margin-top:30px;
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="hospitalDisplay">病院名未設定</h1>
+</header>
+
+<main>
+
+<div id="hospitalSection">
+  <label>病院名</label>
+  <input type="text" id="hospitalName">
+  <button onclick="saveHospital()">保存</button>
+</div>
+
+<div id="deptSection" class="hidden">
+  <h2>診療科一覧</h2>
+  <label>診療科を追加</label>
+  <input type="text" id="newDept">
+  <button onclick="addDepartment()">追加</button>
+  <ul id="deptList"></ul>
+</div>
+
+<div id="contentSection" class="hidden">
+  <h2 id="deptTitle"></h2>
+
+  <label>患者名</label><input type="text" id="patientName">
+  <label>生年月日</label><input type="date" id="birthDate">
+  <label>病名</label><input type="text" id="disease">
+  <label>診療履歴</label><textarea id="history"></textarea>
+  <label>備考</label><textarea id="remarks"></textarea>
+  <label>予約日時</label><input type="datetime-local" id="appointment">
+  <label>担当医</label><input type="text" id="doctor">
+  <label>連絡先</label><input type="text" id="contact">
+  <label>カルテ</label><textarea id="karte" class="karte"></textarea>
+
+  <button onclick="saveRecord()">保存</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>患者名</th><th>生年月日</th><th>年齢</th>
+        <th>病名</th><th>履歴</th><th>備考</th>
+        <th>予約日時</th><th>担当医</th><th>連絡先</th><th>カルテ</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="recordsTable"></tbody>
+  </table>
+
+  <button onclick="backToDept()">← 戻る</button>
+</div>
+
+<button class="saveAll" onclick="saveAllData()">すべて保存</button>
+<button class="loadAll" onclick="document.getElementById('fileLoader').click()">すべて読み込み</button>
+<input type="file" id="fileLoader" accept=".json" style="display:none">
+
+</main>
+
+<script>
+
+/* ===== 既存ロジック完全維持 ===== */
+
+const defaultDepartments=["内科","外科","小児科","整形外科","皮膚科","眼科","耳鼻咽喉科"];
+let departments=[],currentDept="",editingIndex=null;
+
+window.onload=()=>{
+  const h=localStorage.getItem("hospitalName");
+  if(h){
+    hospitalName.value=h;
+    hospitalDisplay.textContent=h;
+    deptSection.classList.remove("hidden");
+  }
+  departments=JSON.parse(localStorage.getItem("departments"))||defaultDepartments;
+  localStorage.setItem("departments",JSON.stringify(departments));
+  showDepartments();
+};
+
+function saveHospital(){
+  if(!hospitalName.value) return alert("病院名を入力してください");
+  localStorage.setItem("hospitalName",hospitalName.value);
+  hospitalDisplay.textContent=hospitalName.value;
+  deptSection.classList.remove("hidden");
+}
+
+function showDepartments(){
+  deptList.innerHTML="";
+  departments.forEach(d=>{
+    const li=document.createElement("li");
+    const a=document.createElement("a");
+    a.textContent=d;
+    a.className="deptLink";
+    a.onclick=()=>showContent(d);
+    const del=document.createElement("button");
+    del.textContent="削除";
+    del.className="smallBtn";
+    del.onclick=()=>deleteDepartment(d);
+    li.appendChild(a);
+    li.appendChild(del);
+    deptList.appendChild(li);
+  });
+}
+
+function addDepartment(){
+  const name=newDept.value.trim();
+  if(!name||departments.includes(name)) return;
+  departments.push(name);
+  localStorage.setItem("departments",JSON.stringify(departments));
+  newDept.value="";
+  showDepartments();
+}
+
+function deleteDepartment(name){
+  if(!confirm(`「${name}」を削除しますか？`)) return;
+  departments=departments.filter(d=>d!==name);
+  localStorage.setItem("departments",JSON.stringify(departments));
+  localStorage.removeItem("records_"+name);
+  showDepartments();
+}
+
+function showContent(dept){
+  currentDept=dept;
+  deptSection.style.display="none";
+  contentSection.style.display="block";
+  deptTitle.textContent=dept;
+  clearForm();loadRecords();
+}
+
+function backToDept(){
+  contentSection.style.display="none";
+  deptSection.style.display="block";
+}
+
+function saveRecord(){
+  if(!patientName.value||!birthDate.value) return alert("必須項目");
+  const key="records_"+currentDept;
+  const records=JSON.parse(localStorage.getItem(key))||[];
+  const data={
+    patient:patientName.value,birth:birthDate.value,
+    age:calcAge(birthDate.value),disease:disease.value,
+    history:history.value,remarks:remarks.value,
+    appointment:appointment.value,doctor:doctor.value,
+    contact:contact.value,karte:karte.value
+  };
+  editingIndex!==null?records[editingIndex]=data:records.push(data);
+  editingIndex=null;
+  localStorage.setItem(key,JSON.stringify(records));
+  clearForm();loadRecords();
+}
+
+function loadRecords(){
+  const records=JSON.parse(localStorage.getItem("records_"+currentDept))||[];
+  recordsTable.innerHTML="";
+  records.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    ["patient","birth","age","disease","history","remarks","appointment","doctor","contact","karte"]
+    .forEach(f=>{
+      const td=document.createElement("td");
+      td.textContent=r[f]||"";
+      tr.appendChild(td);
+    });
+    const td=document.createElement("td");
+    td.innerHTML=`<button onclick="editRecord(${i})">編集</button>
+                  <button onclick="deleteRecord(${i})">削除</button>`;
+    tr.appendChild(td);
+    recordsTable.appendChild(tr);
+  });
+}
+
+function editRecord(i){
+  const r=JSON.parse(localStorage.getItem("records_"+currentDept))[i];
+  patientName.value=r.patient;
+  birthDate.value=r.birth;
+  disease.value=r.disease;
+  history.value=r.history;
+  remarks.value=r.remarks;
+  appointment.value=r.appointment;
+  doctor.value=r.doctor;
+  contact.value=r.contact;
+  karte.value=r.karte;
+  editingIndex=i;
+}
+
+function deleteRecord(i){
+  if(!confirm("削除しますか？"))return;
+  const key="records_"+currentDept;
+  const r=JSON.parse(localStorage.getItem(key));
+  r.splice(i,1);
+  localStorage.setItem(key,JSON.stringify(r));
+  loadRecords();
+}
+
+function clearForm(){
+  ["patientName","birthDate","disease","history","remarks",
+   "appointment","doctor","contact","karte"]
+  .forEach(id=>document.getElementById(id).value="");
+}
+
+function calcAge(b){
+  const t=new Date(),d=new Date(b);
+  let a=t.getFullYear()-d.getFullYear();
+  if(t.getMonth()<d.getMonth()||
+     (t.getMonth()==d.getMonth()&&t.getDate()<d.getDate()))a--;
+  return a;
+}
+
+function saveAllData(){
+  const data={hospitalName:localStorage.getItem("hospitalName"),departments,records:{}};
+  departments.forEach(d=>data.records[d]=JSON.parse(localStorage.getItem("records_"+d))||[]);
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="hospital_backup.json";
+  a.click();
+}
+
+</script>
+
+</body>
+</html>

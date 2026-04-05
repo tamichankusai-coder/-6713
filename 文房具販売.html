@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>和風 文房具POSシステム（明細保持版）</title>
+<style>
+body{
+  font-family:"Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  background:#f8f4e6;
+  background-image:radial-gradient(rgba(0,0,0,0.03)1px,transparent 1px);
+  background-size:5px 5px;
+  padding:20px;
+}
+h1{text-align:center;border-bottom:4px solid #7b001c;padding-bottom:10px;}
+.section{
+  background:rgba(255,255,255,0.95);
+  padding:15px;margin-bottom:20px;border-radius:6px;
+  box-shadow:2px 2px 6px rgba(0,0,0,0.15);
+}
+table{width:100%;border-collapse:collapse;}
+th,td{border:1px solid #555;padding:6px;text-align:center;}
+th{background:linear-gradient(#ece5d8,#e0d6c3);}
+button{
+  background:#7b001c;color:white;border:none;
+  padding:6px 14px;cursor:pointer;margin:5px;
+}
+.low-stock{background:#ffdede;color:red;font-weight:bold;}
+.footer-buttons{
+  text-align:center;
+  margin-top:40px;
+  padding:20px;
+  border-top:3px solid #7b001c;
+}
+ul{padding-left:20px;}
+</style>
+</head>
+<body>
+
+<h1>文房具店 和風POS</h1>
+
+<div class="section">
+<h2>商品追加</h2>
+商品名 <input id="name">
+価格 <input id="price" type="number">
+在庫 <input id="stock" type="number">
+<button onclick="addProduct()">追加</button>
+</div>
+
+<div class="section">
+<h2>商品一覧</h2>
+<table>
+<thead>
+<tr><th>商品名</th><th>価格</th><th>在庫</th><th>操作</th></tr>
+</thead>
+<tbody id="productList"></tbody>
+</table>
+</div>
+
+<div class="section">
+<h2>レジ（直近会計明細を保持）</h2>
+<ul id="cart"></ul>
+<h3>合計：<span id="total">0</span> 円</h3>
+<button onclick="checkout()">会計</button>
+</div>
+
+<div class="section">
+<h2>売上集計</h2>
+<p>本日売上：<span id="todaySales">0</span> 円</p>
+<p>累計売上：<span id="allSales">0</span> 円</p>
+<p>販売件数：<span id="countSales">0</span> 件</p>
+</div>
+
+<div class="section">
+<h2>売上履歴</h2>
+<table>
+<thead>
+<tr><th>日時</th><th>金額</th></tr>
+</thead>
+<tbody id="salesHistory"></tbody>
+</table>
+</div>
+
+<div class="footer-buttons">
+  <button onclick="backup()">バックアップ保存</button>
+  <button onclick="window.print()">印刷</button>
+  <button onclick="resetData()">初期化</button>
+</div>
+
+<script>
+
+/* ===== 安全読込 ===== */
+function load(key){
+  try{
+    const data=JSON.parse(localStorage.getItem(key));
+    return Array.isArray(data)?data:[];
+  }catch{
+    return [];
+  }
+}
+
+let products=load("pos_products");
+let sales=load("pos_sales");
+let cart=[];
+let total=0;
+let nextId=products.length?Math.max(...products.map(p=>p.id))+1:1;
+
+function save(){
+  localStorage.setItem("pos_products",JSON.stringify(products));
+  localStorage.setItem("pos_sales",JSON.stringify(sales));
+}
+
+function yen(n){return Number(n).toLocaleString();}
+
+/* ===== 商品描画 ===== */
+function renderProducts(){
+  const tbody=document.getElementById("productList");
+  tbody.innerHTML="";
+  products.forEach(p=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${p.name}</td>
+      <td>${yen(p.price)}円</td>
+      <td class="${p.stock<=3?'low-stock':''}">${p.stock}</td>
+      <td><button onclick="addToCart(${p.id})" ${p.stock<=0?'disabled':''}>追加</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ===== 商品追加 ===== */
+function addProduct(){
+  const name=document.getElementById("name").value;
+  const price=Number(document.getElementById("price").value);
+  const stock=Number(document.getElementById("stock").value);
+  if(!name||price<=0)return;
+
+  products.push({id:nextId++,name,price,stock});
+  save();
+  renderProducts();
+}
+
+/* ===== カート ===== */
+function addToCart(id){
+  const p=products.find(p=>p.id===id);
+  if(!p||p.stock<=0)return;
+
+  p.stock--;
+  cart.push({...p});
+  total+=p.price;
+
+  renderCart();
+  renderProducts();
+}
+
+function renderCart(){
+  const ul=document.getElementById("cart");
+  ul.innerHTML="";
+  cart.forEach(i=>{
+    const li=document.createElement("li");
+    li.textContent=`${i.name} - ${yen(i.price)}円`;
+    ul.appendChild(li);
+  });
+  document.getElementById("total").textContent=yen(total);
+}
+
+/* ===== 会計（明細は消さない） ===== */
+function checkout(){
+  if(cart.length===0)return;
+
+  sales.push({
+    date:new Date().toISOString(),
+    total:total,
+    items:[...cart]   // 明細も保存
+  });
+
+  save();
+  renderSales();
+
+  // ★カートは消さずにそのまま表示
+}
+
+/* ===== 売上描画 ===== */
+function renderSales(){
+  const tbody=document.getElementById("salesHistory");
+  tbody.innerHTML="";
+  let today=0,all=0;
+  const todayStr=new Date().toISOString().slice(0,10);
+
+  sales.forEach(s=>{
+    all+=Number(s.total);
+    if(s.date.startsWith(todayStr))today+=Number(s.total);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${new Date(s.date).toLocaleString()}</td>
+      <td>${yen(s.total)}円</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById("todaySales").textContent=yen(today);
+  document.getElementById("allSales").textContent=yen(all);
+  document.getElementById("countSales").textContent=sales.length;
+}
+
+/* ===== バックアップ ===== */
+function backup(){
+  const data={products,sales};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download="pos_backup.json";
+  link.click();
+}
+
+/* ===== 初期化 ===== */
+function resetData(){
+  if(confirm("すべて削除しますか？")){
+    localStorage.clear();
+    location.reload();
+  }
+}
+
+renderProducts();
+renderSales();
+
+</script>
+</body>
+</html>

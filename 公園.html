@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>公園管理システム</title>
+<style>
+body {
+  font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  margin:10px;
+}
+table { border-collapse:collapse; width:100%; }
+th,td { border:1px solid #ccc; padding:4px; font-size:13px; vertical-align:top; }
+th { background:#e8f5e9; }
+
+input, select, textarea, button {
+  font-family: inherit; /* すべて明朝体 */
+}
+
+textarea { width:100%; height:60px; }
+.status-ok { background:#e8f5e9; }
+.status-ng { background:#fdecea; }
+
+#preview img { max-width:100px; margin:3px; cursor:pointer; }
+#preview span { position:relative; display:inline-block; }
+#preview button {
+  position:absolute; top:0; right:0;
+  background:red; color:#fff; border:none; cursor:pointer;
+}
+
+#modal {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,.7);
+  justify-content:center; align-items:center;
+}
+#modal img { max-width:90%; max-height:90%; }
+</style>
+</head>
+<body>
+
+<h2>公園管理システム</h2>
+
+<input type="hidden" id="editIndex">
+
+日付<br><input type="date" id="date"><br>
+担当者<br><input id="person"><br>
+公園名<br><input id="parkName"><br>
+住所<br><input id="address"><br>
+
+状態<br>
+<select id="parkStatus">
+  <option value="点検済">点検済</option>
+  <option value="要修理">要修理</option>
+</select><br>
+
+破損等の写真（jpeg/png）<br>
+<input type="file" id="photoInput" accept="image/jpeg,image/png" multiple><br>
+<div id="preview"></div>
+
+管理<br><textarea id="management"></textarea>
+運営<br><textarea id="operation"></textarea>
+事故<br><textarea id="accident"></textarea><br>
+
+<button onclick="savePark()">保存</button>
+<button onclick="clearForm()">新規</button>
+<button onclick="saveAll()">すべて保存</button>
+
+<hr>
+
+公園名で検索：
+<input id="searchBox" oninput="render()">
+
+<table>
+<thead>
+<tr>
+<th>日付</th><th>担当</th><th>公園名</th>
+<th>状態</th><th>写真</th><th>操作</th>
+</tr>
+</thead>
+<tbody id="parkList"></tbody>
+</table>
+
+<div id="modal" onclick="this.style.display='none'">
+  <img id="modalImg">
+</div>
+
+<script>
+const el = id => document.getElementById(id);
+let parks = JSON.parse(localStorage.getItem("parks")) || [];
+let currentPhotos = [];
+
+el("photoInput").onchange = e => {
+  [...e.target.files].forEach(f=>{
+    if(!f.type.match(/jpeg|png/)) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      currentPhotos.push(ev.target.result);
+      renderPreview();
+    };
+    r.readAsDataURL(f);
+  });
+};
+
+function renderPreview(){
+  el("preview").innerHTML="";
+  currentPhotos.forEach((src,i)=>{
+    el("preview").innerHTML+=`
+      <span>
+        <img src="${src}" onclick="openImg('${src}')">
+        <button onclick="currentPhotos.splice(${i},1);renderPreview()">×</button>
+      </span>`;
+  });
+}
+
+function openImg(src){
+  el("modalImg").src = src;
+  el("modal").style.display="flex";
+}
+
+function savePark(){
+  const park = {
+    date: el("date").value,
+    person: el("person").value,
+    name: el("parkName").value,
+    address: el("address").value,
+    status: el("parkStatus").value,
+    photos: [...currentPhotos],
+    management: el("management").value,
+    operation: el("operation").value,
+    accident: el("accident").value
+  };
+  const i = el("editIndex").value;
+  i==="" ? parks.push(park) : parks[i]=park;
+  saveAll(true);
+}
+
+function saveAll(){
+  localStorage.setItem("parks",JSON.stringify(parks));
+  el("searchBox").value="";
+  render();
+  clearForm();
+}
+
+function render(){
+  const key = el("searchBox").value.toLowerCase();
+  el("parkList").innerHTML="";
+  parks.forEach((p,i)=>{
+    if(key && !p.name.toLowerCase().includes(key)) return;
+    el("parkList").innerHTML+=`
+    <tr class="${p.status==='点検済'?'status-ok':'status-ng'}">
+      <td>${p.date}</td>
+      <td>${p.person}</td>
+      <td>${p.name}</td>
+      <td>${p.status}</td>
+      <td>${(p.photos||[]).map(s=>`<img src="${s}" width="60" onclick="openImg('${s}')">`).join("")}</td>
+      <td>
+        <button onclick="editPark(${i})">編集</button>
+        <button onclick="parks.splice(${i},1);saveAll()">削除</button>
+      </td>
+    </tr>`;
+  });
+}
+
+function editPark(i){
+  const p=parks[i];
+  el("editIndex").value=i;
+  el("date").value=p.date;
+  el("person").value=p.person;
+  el("parkName").value=p.name;
+  el("address").value=p.address;
+  el("parkStatus").value=p.status;
+  el("management").value=p.management;
+  el("operation").value=p.operation;
+  el("accident").value=p.accident;
+  currentPhotos=[...(p.photos||[])];
+  renderPreview();
+}
+
+function clearForm(){
+  el("editIndex").value="";
+  ["date","person","parkName","address","management","operation","accident"]
+    .forEach(id=>el(id).value="");
+  el("parkStatus").value="点検済";
+  el("photoInput").value="";
+  currentPhotos=[];
+  el("preview").innerHTML="";
+}
+
+render();
+</script>
+
+</body>
+</html>

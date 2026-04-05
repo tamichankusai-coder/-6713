@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>個人用週間予定表</title>
+
+<style>
+/* ===== 全体を明朝体に完全指定 ===== */
+body {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
+}
+
+button, input, textarea, select, th, td, h1 {
+  font-family: inherit;
+}
+
+button {
+  margin: 5px;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+th, td {
+  border: 1px solid #333;
+  padding: 4px;
+  text-align: center;
+  vertical-align: top;
+}
+
+th {
+  background-color: #f0f0f0;
+}
+
+.section-title {
+  background-color: #ddd;
+  font-weight: bold;
+}
+
+textarea {
+  width: 100%;
+  height: 60px;
+  resize: vertical;
+}
+
+select {
+  width: 100%;
+}
+
+.work { background-color: #ffe0e0; }
+.break { background-color: #e0ffe0; }
+.private { background-color: #e0e0ff; }
+
+.time {
+  width: 70px;
+}
+</style>
+</head>
+<body>
+
+<h1 id="weekTitle"></h1>
+
+<button onclick="changeWeek(-1)">◀ 前週</button>
+<button onclick="changeWeek(1)">次週 ▶</button>
+
+<table>
+<thead>
+<tr>
+<th class="time">時間</th>
+<th>月</th>
+<th>火</th>
+<th>水</th>
+<th>木</th>
+<th>金</th>
+<th>土</th>
+<th>日</th>
+</tr>
+</thead>
+<tbody id="body"></tbody>
+</table>
+
+<script>
+const days = ["mon","tue","wed","thu","fri","sat","sun"];
+let weekOffset = Number(localStorage.getItem("weekOffset")) || 0;
+
+/* ===== 午前・午後時間設定 ===== */
+const morningTimes = ["9:00","10:00","11:00"];
+const afternoonTimes = ["13:00","14:00","15:00","16:00","17:00"];
+
+function getWeekKey() {
+  const base = new Date();
+  base.setDate(base.getDate() + weekOffset * 7);
+  const monday = new Date(base);
+  monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+  return monday.toISOString().slice(0,10);
+}
+
+function updateTitle() {
+  const monday = new Date(getWeekKey());
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  document.getElementById("weekTitle").textContent =
+    `週間予定表（${monday.toLocaleDateString()} 〜 ${sunday.toLocaleDateString()}）`;
+}
+
+function createSectionTitle(text) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 8;
+  td.textContent = text;
+  td.className = "section-title";
+  tr.appendChild(td);
+  document.getElementById("body").appendChild(tr);
+}
+
+function createRow(timeLabel, index) {
+  const key = getWeekKey();
+  const tr = document.createElement("tr");
+
+  const timeTd = document.createElement("td");
+  timeTd.textContent = timeLabel;
+  tr.appendChild(timeTd);
+
+  days.forEach(day => {
+    const td = document.createElement("td");
+
+    const select = document.createElement("select");
+    ["","work","break","private"].forEach(v => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent =
+        v === "work" ? "仕事" :
+        v === "break" ? "休憩" :
+        v === "private" ? "私用" : "未設定";
+      select.appendChild(o);
+    });
+
+    const ta = document.createElement("textarea");
+    const textKey = `${key}-${day}-${index}`;
+    const typeKey = `${key}-${day}-type-${index}`;
+
+    ta.value = localStorage.getItem(textKey) || "";
+    select.value = localStorage.getItem(typeKey) || "";
+    td.className = select.value;
+
+    ta.oninput = () => localStorage.setItem(textKey, ta.value);
+    select.onchange = () => {
+      td.className = select.value;
+      localStorage.setItem(typeKey, select.value);
+    };
+
+    td.appendChild(select);
+    td.appendChild(ta);
+    tr.appendChild(td);
+  });
+
+  document.getElementById("body").appendChild(tr);
+}
+
+function loadWeek() {
+  document.getElementById("body").innerHTML = "";
+  updateTitle();
+
+  let rowIndex = 0;
+
+  /* 午前 */
+  createSectionTitle("午前");
+  morningTimes.forEach(time => {
+    createRow(time, rowIndex++);
+  });
+
+  /* 午後 */
+  createSectionTitle("午後");
+  afternoonTimes.forEach(time => {
+    createRow(time, rowIndex++);
+  });
+}
+
+function changeWeek(diff) {
+  weekOffset += diff;
+  localStorage.setItem("weekOffset", weekOffset);
+  loadWeek();
+}
+
+loadWeek();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>請求書作成・保存・印刷</title>
+<style>
+body {
+  font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  padding: 20px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 10px;
+  font-family: inherit;
+}
+th, td {
+  border: 1px solid #333;
+  padding: 6px;
+  text-align: center;
+}
+input, button {
+  font-family: inherit;
+}
+input {
+  width: 100%;
+  box-sizing: border-box;
+}
+button {
+  margin: 8px 4px;
+}
+.right { text-align: right; }
+.note { margin-top: 20px; }
+
+@media print {
+  .no-print { display: none; }
+  body {
+    padding: 0;
+    font-family: "Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  }
+  input {
+    border: none;
+    font-family: inherit;
+  }
+}
+</style>
+</head>
+<body>
+
+<h1>請求書</h1>
+
+<table>
+<tr>
+<td class="right">請求日</td>
+<td><input type="date" id="date"></td>
+<td class="right">請求書番号</td>
+<td><input id="invoiceNo"></td>
+</tr>
+<tr>
+<td class="right">請求先</td>
+<td colspan="3"><input id="client"></td>
+</tr>
+<tr>
+<td class="right">発行者</td>
+<td colspan="3"><input id="issuer"></td>
+</tr>
+</table>
+
+<table id="items">
+<thead>
+<tr>
+<th>内容</th>
+<th>数量</th>
+<th>単価</th>
+<th>金額</th>
+<th class="no-print">削除</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<button class="no-print" onclick="addRow()">行追加</button>
+
+<table>
+<tr>
+<td class="right">小計</td>
+<td id="subtotal" class="right">¥0</td>
+</tr>
+<tr>
+<td class="right">税率（%）</td>
+<td><input type="number" id="taxRate" value="10" oninput="calc()"></td>
+</tr>
+<tr>
+<td class="right">消費税</td>
+<td id="tax" class="right">¥0</td>
+</tr>
+<tr>
+<td class="right"><b>合計金額</b></td>
+<td id="total" class="right"><b>¥0</b></td>
+</tr>
+</table>
+
+<div class="note">
+<p>上記の通り請求申しあげます。</p>
+</div>
+
+<div class="no-print">
+<button onclick="saveAll()">全体保存</button>
+<button onclick="saveAll()">全部保存</button>
+<button onclick="loadAll()">保存データ読込</button>
+<button onclick="window.print()">請求書を印刷</button>
+</div>
+
+<script>
+function formatYen(num) {
+  return '¥' + Number(num).toLocaleString('ja-JP');
+}
+
+function addRow(data = {}) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input value="${data.name || ''}"></td>
+    <td><input type="number" value="${data.qty || 1}" oninput="calc()"></td>
+    <td><input type="number" value="${data.price || 0}" oninput="calc()"></td>
+    <td class="right amount">¥0</td>
+    <td class="no-print"><button onclick="this.closest('tr').remove();calc()">×</button></td>
+  `;
+  document.querySelector('#items tbody').appendChild(tr);
+  calc();
+}
+
+function calc() {
+  let sum = 0;
+  document.querySelectorAll('#items tbody tr').forEach(tr => {
+    const qty = Number(tr.children[1].firstChild.value);
+    const price = Number(tr.children[2].firstChild.value);
+    const amt = qty * price;
+    tr.querySelector('.amount').textContent = formatYen(amt);
+    sum += amt;
+  });
+  document.getElementById('subtotal').textContent = formatYen(sum);
+  const rate = Number(document.getElementById('taxRate').value) / 100;
+  const tax = Math.round(sum * rate);
+  document.getElementById('tax').textContent = formatYen(tax);
+  document.getElementById('total').textContent = formatYen(sum + tax);
+}
+
+function saveAll() {
+  const data = {
+    date: date.value,
+    invoiceNo: invoiceNo.value,
+    client: client.value,
+    issuer: issuer.value,
+    taxRate: taxRate.value,
+    items: [...document.querySelectorAll('#items tbody tr')].map(tr => ({
+      name: tr.children[0].firstChild.value,
+      qty: tr.children[1].firstChild.value,
+      price: tr.children[2].firstChild.value
+    }))
+  };
+  localStorage.setItem('invoiceData', JSON.stringify(data));
+}
+
+function loadAll() {
+  const data = JSON.parse(localStorage.getItem('invoiceData'));
+  if (!data) return;
+  date.value = data.date;
+  invoiceNo.value = data.invoiceNo;
+  client.value = data.client;
+  issuer.value = data.issuer;
+  taxRate.value = data.taxRate;
+  document.querySelector('#items tbody').innerHTML = '';
+  data.items.forEach(i => addRow(i));
+  calc();
+}
+
+addRow();
+</script>
+
+</body>
+</html>

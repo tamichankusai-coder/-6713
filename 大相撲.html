@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>大相撲 本場所管理（完全安定版）</title>
+
+<style>
+body{font-family:sans-serif;background:#f5deb3;text-align:center}
+table{margin:10px auto;border-collapse:collapse;background:#fff8dc}
+th,td{border:1px solid #8b4513;padding:6px}
+th{background:#deb887}
+button{padding:6px 14px;margin:8px;font-size:14px}
+#saveMsg{color:green;font-weight:bold}
+
+@media print{
+ button,select,input,#saveMsg{display:none}
+ body{background:white}
+}
+</style>
+</head>
+
+<body>
+
+<h1>🏯 大相撲 本場所管理</h1>
+
+<p>
+<input id="year" type="number" style="width:80px">年
+<select id="basho">
+<option>初場所</option><option>春場所</option><option>夏場所</option>
+<option>名古屋場所</option><option>秋場所</option><option>九州場所</option>
+</select>
+</p>
+
+<h2>番付登録</h2>
+<table id="rankTable"></table>
+<button onclick="registerBanzuke()">登録確定</button>
+
+<hr>
+
+<h2>取組入力</h2>
+<p>
+<select id="daySel"></select> 日目
+</p>
+
+<p>
+東：
+<select id="eastSel"></select>
+vs
+西：
+<select id="westSel"></select>
+</p>
+
+<button onclick="record('E')">東の勝ち</button>
+<button onclick="record('W')">西の勝ち</button>
+
+<h2>星取表</h2>
+<table id="starTable"></table>
+
+<h2>全取組履歴</h2>
+<table id="historyTable"></table>
+
+<hr>
+<button onclick="saveAll()">💾 すべて保存</button>
+<button id="printBtn" onclick="window.print()" disabled>🖨 千秋楽印刷</button>
+<p id="saveMsg"></p>
+
+<script>
+
+const DAYS=15;
+
+const RANKS=[
+"横綱","大関","関脇","小結",
+"前頭一","前頭二","前頭三","前頭四","前頭五",
+"前頭六","前頭七","前頭八","前頭九",
+"前頭十","前頭十一","前頭十二","前頭十三",
+"前頭十四","前頭十五","前頭十六","前頭十七"
+];
+
+let rikishi=[];
+let torikumi={};
+let currentDay=1;
+
+/* 番付表 */
+
+function buildRankTable(){
+
+ let h="<tr><th>東</th><th>番付</th><th>西</th></tr>";
+
+ RANKS.forEach(r=>{
+  h+=`
+  <tr>
+  <td><input id="${r}_E"></td>
+  <td>${r}</td>
+  <td><input id="${r}_W"></td>
+  </tr>
+  `;
+ });
+
+ for(let i=1;i<=7;i++){
+
+  h+=`
+  <tr>
+  <td><input id="extra${i}_E"></td>
+  <td></td>
+  <td><input id="extra${i}_W"></td>
+  </tr>
+  `;
+ }
+
+ rankTable.innerHTML=h;
+
+}
+
+/* 日目 */
+
+function buildDaySel(){
+
+ daySel.innerHTML="";
+
+ for(let i=1;i<=DAYS;i++){
+  daySel.innerHTML+=`<option value="${i}">${i}</option>`;
+ }
+
+ daySel.value=currentDay;
+
+ daySel.onchange=()=>{
+  currentDay=+daySel.value;
+  update();
+ };
+
+}
+
+/* 番付登録（★修正版） */
+
+function registerBanzuke(){
+
+ const oldRikishi=[...rikishi];
+
+ rikishi=[];
+
+ if(Object.keys(torikumi).length===0){
+  for(let i=1;i<=DAYS;i++) torikumi[i]=[];
+ }
+
+ RANKS.forEach(r=>{
+  ["E","W"].forEach(s=>{
+
+   const v=document.getElementById(`${r}_${s}`).value.trim();
+
+   if(v){
+
+    const old=oldRikishi.find(o=>o.name===v);
+
+    rikishi.push({
+     id:r+"_"+s,
+     name:v,
+     rank:r,
+     side:s,
+     stars:old?old.stars:Array(DAYS).fill("")
+    });
+
+   }
+
+  });
+ });
+
+ for(let i=1;i<=7;i++){
+
+  ["E","W"].forEach(s=>{
+
+   const v=document.getElementById(`extra${i}_${s}`).value.trim();
+
+   if(v){
+
+    const old=oldRikishi.find(o=>o.name===v);
+
+    rikishi.push({
+     id:"extra"+i+"_"+s,
+     name:v,
+     rank:"",
+     side:s,
+     stars:old?old.stars:Array(DAYS).fill("")
+    });
+
+   }
+
+  });
+ }
+
+ if(rikishi.length===0){
+
+  alert("力士が登録されていません");
+  return;
+
+ }
+
+ buildDaySel();
+ buildSelects();
+ update();
+
+ saveAll();
+
+}
+
+/* 東西選択 */
+
+function buildSelects(){
+
+ eastSel.innerHTML="";
+ westSel.innerHTML="";
+
+ rikishi.forEach(r=>{
+
+  const t=`${r.rank}${r.side==="E"?"東":"西"} ${r.name}`;
+
+  eastSel.innerHTML+=`<option value="${r.id}">${t}</option>`;
+  westSel.innerHTML+=`<option value="${r.id}">${t}</option>`;
+
+ });
+
+}
+
+/* 勝敗 */
+
+function record(w){
+
+ if(rikishi.length===0) return;
+
+ const e=rikishi.find(r=>r.id===eastSel.value);
+ const s=rikishi.find(r=>r.id===westSel.value);
+
+ if(!e||!s||e===s) return;
+
+ const win=w==="E"?e:s;
+ const lose=w==="E"?s:e;
+
+ win.stars[currentDay-1]="○";
+ lose.stars[currentDay-1]="●";
+
+ torikumi[currentDay].push(
+ `${currentDay}日目 ${e.rank}${e.name} vs ${s.rank}${s.name} → ${win.name}`
+ );
+
+ update();
+ saveAll();
+
+}
+
+/* 表示 */
+
+function update(){
+
+ let h="<tr><th>力士</th>";
+
+ for(let i=1;i<=DAYS;i++) h+=`<th>${i}</th>`;
+
+ h+="</tr>";
+
+ rikishi.forEach(r=>{
+
+  h+=`<tr><td>${r.rank}${r.side==="E"?"東":"西"} ${r.name}</td>`;
+
+  r.stars.forEach(s=>h+=`<td>${s}</td>`);
+
+  h+="</tr>";
+
+ });
+
+ starTable.innerHTML=h;
+
+ let hist="<tr><th>取組</th></tr>";
+
+ for(let d=1;d<=DAYS;d++){
+
+  torikumi[d].forEach(x=>{
+   hist+=`<tr><td>${x}</td></tr>`;
+  });
+
+ }
+
+ historyTable.innerHTML=hist;
+
+ printBtn.disabled=(currentDay!==15);
+
+}
+
+/* 保存 */
+
+function saveAll(){
+
+ if(!year.value){
+  alert("年を入力してください");
+  return;
+ }
+
+ const key="sumoStable_"+year.value+"_"+basho.value;
+
+ const rankInputs={};
+
+ document.querySelectorAll("#rankTable input").forEach(i=>{
+  rankInputs[i.id]=i.value;
+ });
+
+ localStorage.setItem(key,JSON.stringify({
+
+  year:year.value,
+  basho:basho.value,
+  rikishi,
+  torikumi,
+  currentDay,
+  rankInputs
+
+ }));
+
+ saveMsg.textContent="✔ すべて保存しました";
+
+ setTimeout(()=>saveMsg.textContent="",1500);
+
+}
+
+/* 読込 */
+
+function loadData(){
+
+ if(!year.value) return;
+
+ const key="sumoStable_"+year.value+"_"+basho.value;
+
+ const j=localStorage.getItem(key);
+
+ if(!j) return;
+
+ const d=JSON.parse(j);
+
+ rikishi=d.rikishi||[];
+ torikumi=d.torikumi||{};
+ currentDay=d.currentDay||1;
+
+ if(d.rankInputs){
+
+  for(const id in d.rankInputs){
+
+   const el=document.getElementById(id);
+
+   if(el) el.value=d.rankInputs[id];
+
+  }
+
+ }
+
+ for(let i=1;i<=DAYS;i++){
+
+  if(!torikumi[i]) torikumi[i]=[];
+
+ }
+
+ buildDaySel();
+ buildSelects();
+ update();
+
+}
+
+/* 初期 */
+
+(function(){
+
+ buildRankTable();
+
+ year.onchange=loadData;
+ basho.onchange=loadData;
+
+})();
+
+</script>
+
+</body>
+</html>

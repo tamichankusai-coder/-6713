@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水族館統合経営ダッシュボード</title>
+
+<style>
+body{
+    margin:0;
+    background:#f2f4f7;
+    font-family:"Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+}
+header{
+    background:#0b2c4d;
+    color:white;
+    padding:20px;
+    text-align:center;
+    font-size:24px;
+}
+.container{max-width:1400px;margin:auto;padding:25px;}
+.section{
+    background:white;
+    padding:25px;
+    margin-bottom:25px;
+    border-radius:12px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.08);
+}
+h2{
+    border-left:6px solid #0b2c4d;
+    padding-left:10px;
+}
+input,select,textarea{
+    width:100%;
+    padding:8px;
+    margin-top:5px;
+    border:1px solid #ccc;
+    border-radius:6px;
+    font-family:inherit;
+}
+button{
+    padding:12px 18px;
+    background:#0b2c4d;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    margin-top:15px;
+    font-family:inherit;
+    font-size:16px;
+}
+@media print{
+    button,input[type=file]{display:none;}
+}
+
+/* 生体一覧 四角枠 */
+.animal-box{
+    margin-top:20px;
+    border:2px solid #0b2c4d;
+    border-radius:10px;
+    padding:15px;
+    min-height:80px;
+    background:#fafcff;
+}
+.animal-item{
+    padding:8px;
+    border-bottom:1px solid #ddd;
+}
+.animal-item:last-child{
+    border-bottom:none;
+}
+
+/* 大画面動画 */
+#videoOverlay{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:black;
+    display:none;
+    justify-content:center;
+    align-items:center;
+    z-index:9999;
+}
+#videoOverlay video{
+    width:95%;
+    height:95%;
+    object-fit:contain;
+}
+#closeVideo{
+    position:absolute;
+    top:20px;
+    right:30px;
+    color:white;
+    font-size:28px;
+    cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<header>水族館統合経営ダッシュボード（日誌型保存）</header>
+
+<div class="container">
+
+<div class="section">
+<h2>基本営業情報</h2>
+<label>店舗名</label>
+<input id="storeName">
+<label>日付</label>
+<input id="date" type="date">
+<label>来館者数</label>
+<input id="visitors" type="number">
+<label>売上（円）</label>
+<input id="revenue" type="number">
+<label>来館単価（入力式）</label>
+<input id="unitPrice" type="number">
+</div>
+
+<div class="section">
+<h2>生体在庫管理</h2>
+<label>生体種別</label>
+<input id="animalName">
+<label>個体数</label>
+<input id="animalCount" type="number">
+<label>アクション（動画演出制御）</label>
+<select id="actionSelect" onchange="toggleVideoUpload()">
+<option value="なし">なし</option>
+<option value="あり">あり</option>
+</select>
+<button onclick="addAnimal()">追加</button>
+
+<!-- ✅ 四角枠表示に変更 -->
+<div class="animal-box" id="animalBox"></div>
+
+</div>
+
+<div class="section">
+<h2>明日への伝言</h2>
+<textarea id="memo" rows="4"></textarea>
+<button onclick="window.print()">印刷</button>
+</div>
+
+<div class="section" id="videoSection" style="display:none;">
+<h2>熱帯魚動画アップロード（アクション有）</h2>
+<input type="file" accept="video/mp4" onchange="loadVideo(event)">
+<button onclick="openVideo()">大画面で再生</button>
+</div>
+
+<div class="section" style="text-align:center;">
+<button onclick="saveAll()">すべて保存（日誌保存）</button>
+</div>
+
+</div>
+
+<div id="videoOverlay">
+<div id="closeVideo" onclick="closeVideo()">✕</div>
+<video id="bigVideo" controls autoplay></video>
+</div>
+
+<script>
+
+/* 生体追加（四角枠表示） */
+function addAnimal(){
+    if(!animalName.value || !animalCount.value) return;
+
+    const div=document.createElement("div");
+    div.className="animal-item";
+    div.innerText=animalName.value+" ： "+animalCount.value+" 匹";
+
+    animalBox.appendChild(div);
+
+    animalName.value="";
+    animalCount.value="";
+}
+
+/* アクション表示 */
+function toggleVideoUpload(){
+    videoSection.style.display=
+        actionSelect.value==="あり"?"block":"none";
+}
+
+/* 動画 */
+let uploadedVideoURL="";
+function loadVideo(e){
+    const file=e.target.files[0];
+    if(file){
+        uploadedVideoURL=URL.createObjectURL(file);
+    }
+}
+function openVideo(){
+    if(uploadedVideoURL===""){
+        alert("動画を選択してください");
+        return;
+    }
+    bigVideo.src=uploadedVideoURL;
+    videoOverlay.style.display="flex";
+}
+function closeVideo(){
+    bigVideo.pause();
+    videoOverlay.style.display="none";
+}
+
+/* 日誌型保存 */
+function saveAll(){
+    const key="diary_"+date.value;
+    const data={
+        store:storeName.value,
+        visitors:visitors.value,
+        revenue:revenue.value,
+        unitPrice:unitPrice.value,
+        action:actionSelect.value,
+        memo:memo.value,
+        animals:animalBox.innerHTML
+    };
+    localStorage.setItem(key,JSON.stringify(data));
+    alert("日付 "+date.value+" で保存しました");
+}
+
+date.onchange=function(){
+    loadByDate();
+};
+
+function loadByDate(){
+    const key="diary_"+date.value;
+    const data=JSON.parse(localStorage.getItem(key));
+    if(!data){
+        visitors.value="";
+        revenue.value="";
+        unitPrice.value="";
+        memo.value="";
+        animalBox.innerHTML="";
+        return;
+    }
+    storeName.value=data.store||"";
+    visitors.value=data.visitors||"";
+    revenue.value=data.revenue||"";
+    unitPrice.value=data.unitPrice||"";
+    actionSelect.value=data.action||"なし";
+    memo.value=data.memo||"";
+    animalBox.innerHTML=data.animals||"";
+    toggleVideoUpload();
+}
+
+window.onload=function(){
+    date.value=new Date().toISOString().split("T")[0];
+    loadByDate();
+};
+
+</script>
+
+</body>
+</html>

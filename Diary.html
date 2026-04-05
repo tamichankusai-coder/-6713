@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>京都老舗日記帳</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --paper:#f6f1e8;
+  --ink:#222;
+  --gold:#8c6b1f;
+  --line:#c8bca8;
+  --sun:#b00000;
+  --sat:#1a4fa3;
+}
+
+body{
+  margin:0;
+  padding:40px;
+  background:var(--paper);
+  font-family:"Noto Serif JP","Yu Mincho","Hiragino Mincho ProN",serif;
+  color:var(--ink);
+  line-height:1.9;
+  letter-spacing:0.06em;
+}
+
+.container{
+  max-width:950px;
+  margin:auto;
+  background:#fffdf8;
+  padding:60px;
+  border:3px double var(--gold);
+  box-shadow:0 0 30px rgba(140,107,31,0.15);
+}
+
+h1{
+  text-align:center;
+  letter-spacing:0.3em;
+  border-bottom:2px solid var(--gold);
+  padding-bottom:20px;
+  margin-bottom:40px;
+}
+
+textarea,input,button,select{
+  font-family:inherit;
+  border:1px solid var(--line);
+  padding:8px;
+}
+
+textarea{
+  width:100%;
+  height:220px;
+  resize:none;
+}
+
+.controls{
+  margin-top:20px;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+button{
+  background:#f4efe6;
+  border:1px solid var(--gold);
+  cursor:pointer;
+  padding:8px 16px;
+}
+
+#logoPreview{
+  text-align:center;
+  margin-bottom:20px;
+}
+
+#logoPreview img{
+  max-width:150px;
+  margin-bottom:20px;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:20px;
+}
+
+th,td{
+  border:1px solid var(--line);
+  padding:6px;
+  text-align:center;
+}
+
+.sun{ color:var(--sun); }
+.sat{ color:var(--sat); }
+
+.holiday{
+  color:var(--sun);
+  font-weight:700;
+}
+
+.holiday span{
+  display:block;
+  font-size:0.7em;
+  margin-top:2px;
+}
+
+/* ▼ 追加：最下部ボタン */
+.bottom-controls{
+  margin-top:40px;
+  text-align:center;
+}
+.bottom-controls button{
+  margin:10px;
+}
+
+@media print{
+  body{
+    background:#fff;
+    padding:0;
+  }
+  .no-print{
+    display:none;
+  }
+  .print-page{
+    padding:80px;
+    border:4px double var(--gold);
+    height:100vh;
+    box-sizing:border-box;
+    position:relative;
+  }
+  .signature{
+    margin-top:60px;
+    border-top:1px solid #000;
+    width:300px;
+  }
+  .pagenum{
+    position:absolute;
+    bottom:30px;
+    right:50px;
+    font-size:0.8em;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>京都老舗日記帳</h1>
+
+<label>日付 <input type="date" id="date"></label>
+
+<div id="logoPreview"></div>
+
+<textarea id="diary"></textarea>
+
+<div class="controls no-print">
+  <input type="file" id="logoUpload" accept="image/*">
+  <button onclick="saveDiary()">保存</button>
+  <button onclick="printDiary()">印刷</button>
+</div>
+
+<hr>
+
+<h3>📅 カレンダー</h3>
+<label>
+  年
+  <select id="yearSelect"></select>
+</label>
+<label>
+  月
+  <select id="monthSelect"></select>
+</label>
+
+<div id="calendar"></div>
+
+<!-- ▼ 追加：最下部ボタン -->
+<div class="bottom-controls no-print">
+  <button onclick="saveAllDiary()">すべて保存</button>
+  <button onclick="printAllScreen()">全画面印刷</button>
+</div>
+
+</div>
+
+<script>
+const today=new Date();
+let currentYear=today.getFullYear();
+let currentMonth=today.getMonth();
+date.value=today.toISOString().slice(0,10);
+
+const key=d=>'d-'+d;
+let uploadedLogo="";
+
+/* 保存 */
+function saveDiary(){
+  localStorage.setItem(key(date.value),diary.value);
+}
+
+/* ▼ 追加：すべて保存 */
+function saveAllDiary(){
+  saveDiary();
+  if(uploadedLogo){
+    localStorage.setItem("savedLogo",uploadedLogo);
+  }
+  alert("すべて保存しました");
+}
+
+/* 読込 */
+function loadDiary(){
+  diary.value=localStorage.getItem(key(date.value))||"";
+}
+date.onchange=loadDiary;
+loadDiary();
+
+/* ロゴ読込復元 */
+window.onload=function(){
+  const savedLogo=localStorage.getItem("savedLogo");
+  if(savedLogo){
+    uploadedLogo=savedLogo;
+    logoPreview.innerHTML='<img src="'+uploadedLogo+'">';
+  }
+};
+
+/* ロゴアップロード */
+logoUpload.addEventListener("change",function(e){
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    uploadedLogo=ev.target.result;
+    logoPreview.innerHTML='<img src="'+uploadedLogo+'">';
+  }
+  reader.readAsDataURL(e.target.files[0]);
+});
+
+/* 印刷 */
+function printDiary(){
+  const content=`
+  <div class="print-page">
+    <div style="text-align:center;">
+      ${uploadedLogo?`<img src="${uploadedLogo}" style="max-width:150px;"><br><br>`:""}
+    </div>
+    <h2>${date.value}</h2>
+    <div>${diary.value.replace(/\n/g,"<br>")}</div>
+    <div class="signature">署名</div>
+    <div class="pagenum">1</div>
+  </div>
+  `;
+  const original=document.body.innerHTML;
+  document.body.innerHTML=content;
+  window.print();
+  document.body.innerHTML=original;
+  location.reload();
+}
+
+/* ▼ 追加：全画面印刷 */
+function printAllScreen(){
+  window.print();
+}
+
+/* 祝日 */
+function holidays(year){
+  const h={};
+  const add=(m,d,n)=>h[`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`]=n;
+  add(1,1,'元日');
+  add(2,11,'建国記念の日');
+  add(4,29,'昭和の日');
+  add(5,3,'憲法記念日');
+  add(5,4,'みどりの日');
+  add(5,5,'こどもの日');
+  add(11,3,'文化の日');
+  add(11,23,'勤労感謝の日');
+  return h;
+}
+
+/* カレンダー生成 */
+function generateCalendar(year,month){
+  const hol=holidays(year);
+  let html='<table><tr>';
+  const days=['日','月','火','水','木','金','土'];
+
+  for(let i=0;i<7;i++){
+    let cls=i===0?'sun':i===6?'sat':'';
+    html+=`<th class="${cls}">${days[i]}</th>`;
+  }
+  html+='</tr><tr>';
+
+  const first=new Date(year,month,1).getDay();
+  const last=new Date(year,month+1,0).getDate();
+
+  for(let i=0;i<first;i++) html+='<td></td>';
+
+  for(let d=1;d<=last;d++){
+    const weekday=(first+d-1)%7;
+    const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    let cls='';
+    if(weekday===0) cls='sun';
+    if(weekday===6) cls='sat';
+    if(hol[dateStr]) cls='holiday';
+
+    html+=`<td class="${cls}">${d}`;
+    if(hol[dateStr]) html+=`<span>${hol[dateStr]}</span>`;
+    html+='</td>';
+
+    if((first+d)%7===0) html+='</tr><tr>';
+  }
+
+  html+='</tr></table>';
+  calendar.innerHTML=html;
+}
+
+for(let y=currentYear-5;y<=currentYear+5;y++){
+  yearSelect.innerHTML+=`<option value="${y}" ${y===currentYear?'selected':''}>${y}</option>`;
+}
+
+for(let m=1;m<=12;m++){
+  monthSelect.innerHTML+=`<option value="${m-1}" ${m-1===currentMonth?'selected':''}>${m}</option>`;
+}
+
+yearSelect.onchange=()=>generateCalendar(parseInt(yearSelect.value),parseInt(monthSelect.value));
+monthSelect.onchange=()=>generateCalendar(parseInt(yearSelect.value),parseInt(monthSelect.value));
+
+generateCalendar(currentYear,currentMonth);
+
+</script>
+
+</body>
+</html>

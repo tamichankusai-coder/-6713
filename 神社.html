@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神社管理ソフト</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body{
+  font-family:"Yu Mincho","Hiragino Mincho ProN","MS Mincho",serif;
+  background:#fff8e7;
+  max-width:1000px;
+  margin:auto;
+  padding:20px;
+}
+input,button,textarea{font-family:inherit;font-size:16px;}
+button{cursor:pointer;border:none;border-radius:4px;padding:6px 10px;margin-left:5px;}
+.add-btn{background:#4b2e83;color:#fff;}
+.edit-btn{background:#1e90ff;color:#fff;}
+.delete-btn{background:#b22222;color:#fff;}
+.save-btn{background:#006400;color:#fff;width:100%;margin-top:30px;padding:12px;font-size:18px;}
+
+header{text-align:center;}
+#today{margin-bottom:15px;font-size:18px;}
+#map{height:350px;margin-bottom:20px;}
+
+ul{list-style:none;padding:0;}
+li{background:#f3e8ff;margin:8px 0;padding:10px;border-radius:6px;}
+
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{border:1px solid #aaa;width:14.28%;vertical-align:top;padding:4px;}
+.calendar-input{width:100%;min-height:60px;border:none;resize:vertical;background:#fffdf5;}
+#calendar-nav{text-align:center;margin-bottom:5px;}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>神社管理ソフト</h1>
+<div id="today"></div>
+</header>
+
+<section>
+<h2>神社データ入力</h2>
+<div id="map"></div>
+<form id="shrine-form">
+<input type="hidden" id="edit-index">
+<input type="text" id="shrine-name" placeholder="神社名" required>
+<input type="text" id="shrine-address" placeholder="住所" required>
+<input type="date" id="visit-date" required>
+<button type="submit" class="add-btn">登録 / 更新</button>
+</form>
+</section>
+
+<section>
+<h2>神社一覧</h2>
+<ul id="shrine-list"></ul>
+</section>
+
+<section>
+<h2>参拝日カレンダー</h2>
+<div id="calendar-nav">
+<button id="prev-month">◀ 前月</button>
+<span id="calendar-title"></span>
+<button id="next-month">次月 ▶</button>
+</div>
+<div id="calendar-month"></div>
+</section>
+
+<button id="saveAllBtn" class="save-btn">画面すべて保存</button>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+// 今日表示
+const today=new Date();
+document.getElementById("today").textContent=
+`本日：${today.getFullYear()}年 ${today.getMonth()+1}月 ${today.getDate()}日`;
+
+// マップ初期化
+const map=L.map('map').setView([35.681236,139.767125],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let shrines=JSON.parse(localStorage.getItem("shrines"))||[];
+let calendarNotes=JSON.parse(localStorage.getItem("calendarNotes"))||{};
+let markers=[];
+
+function saveAll(){
+localStorage.setItem("shrines",JSON.stringify(shrines));
+localStorage.setItem("calendarNotes",JSON.stringify(calendarNotes));
+}
+
+function clearMarkers(){
+markers.forEach(m=>map.removeLayer(m));
+markers=[];
+}
+
+function renderMarkers(){
+clearMarkers();
+shrines.forEach((s,i)=>{
+if(s.visible!==false){
+const marker=L.marker([s.lat,s.lng]).addTo(map);
+marker.bindPopup(`<strong>${s.name}</strong><br>${s.address}<br>参拝日:${s.date}`);
+markers[i]=marker;
+}
+});
+}
+
+function renderList(){
+const list=document.getElementById("shrine-list");
+list.innerHTML="";
+shrines.forEach((s,i)=>{
+const li=document.createElement("li");
+li.innerHTML=`
+<input type="checkbox" ${s.visible!==false?"checked":""} 
+onchange="toggleMarker(${i},this.checked)"> 地図表示
+<br>
+<strong>${s.name}</strong><br>
+${s.address}<br>
+参拝日:${s.date}
+<br>
+<button class="edit-btn" onclick="editShrine(${i})">編集</button>
+<button class="delete-btn" onclick="deleteShrine(${i})">削除</button>
+`;
+list.appendChild(li);
+});
+renderMarkers();
+}
+
+async function geocode(address){
+const url=`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+const res=await fetch(url);
+const data=await res.json();
+if(data.length>0){
+return {lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};
+}
+return null;
+}
+
+// 登録・更新
+document.getElementById("shrine-form").addEventListener("submit",async e=>{
+e.preventDefault();
+const index=document.getElementById("edit-index").value;
+const name=document.getElementById("shrine-name").value;
+const address=document.getElementById("shrine-address").value;
+const date=document.getElementById("visit-date").value;
+
+const loc=await geocode(address);
+if(!loc){alert("住所が見つかりません");return;}
+
+if(index===""){
+shrines.push({name,address,date,lat:loc.lat,lng:loc.lng,visible:true});
+}else{
+shrines[index]={name,address,date,lat:loc.lat,lng:loc.lng,visible:true};
+document.getElementById("edit-index").value="";
+}
+
+e.target.reset();
+renderList();
+});
+
+// 編集
+window.editShrine=function(i){
+const s=shrines[i];
+document.getElementById("shrine-name").value=s.name;
+document.getElementById("shrine-address").value=s.address;
+document.getElementById("visit-date").value=s.date;
+document.getElementById("edit-index").value=i;
+};
+
+// 削除
+window.deleteShrine=function(i){
+if(confirm("削除しますか？")){
+shrines.splice(i,1);
+renderList();
+}
+};
+
+// 表示切替
+window.toggleMarker=function(i,checked){
+shrines[i].visible=checked;
+renderMarkers();
+};
+
+// カレンダー
+let currentDate=new Date();
+let currentYear=currentDate.getFullYear();
+let currentMonth=currentDate.getMonth();
+
+function renderCalendar(year,month){
+const firstDay=new Date(year,month,1);
+const lastDay=new Date(year,month+1,0);
+const startDay=firstDay.getDay();
+const daysInMonth=lastDay.getDate();
+document.getElementById("calendar-title").textContent=`${year}年 ${month+1}月`;
+
+let html="<table><tr>";
+["日","月","火","水","木","金","土"].forEach(d=>html+=`<th>${d}</th>`);
+html+="</tr><tr>";
+
+for(let i=0;i<startDay;i++)html+="<td></td>";
+
+for(let day=1;day<=daysInMonth;day++){
+const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+const note=calendarNotes[dateStr]||"";
+html+=`<td>
+<strong>${day}</strong>
+<textarea class="calendar-input"
+oninput="calendarNotes['${dateStr}']=this.value">${note}</textarea>
+</td>`;
+if((startDay+day)%7===0)html+="</tr><tr>";
+}
+html+="</tr></table>";
+document.getElementById("calendar-month").innerHTML=html;
+}
+
+document.getElementById("prev-month").onclick=()=>{
+currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}
+renderCalendar(currentYear,currentMonth);
+};
+document.getElementById("next-month").onclick=()=>{
+currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}
+renderCalendar(currentYear,currentMonth);
+};
+
+document.getElementById("saveAllBtn").onclick=()=>{
+saveAll();
+alert("画面すべて保存しました");
+};
+
+renderList();
+renderCalendar(currentYear,currentMonth);
+</script>
+
+</body>
+</html>
